@@ -1,0 +1,437 @@
+generator client {
+  provider   = "prisma-client-js"
+  output     = "../generated/prisma"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "mysql"
+}
+ 
+// 1. COMPANIES
+ 
+model Company {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  email       String?   @unique
+  phone       String?
+  address     String?
+  logo        String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  users               User[]
+  roles               Role[]
+  owners              Owner[]
+  vehicles            Vehicle[]
+  inspectors          Inspector[]
+  inspections         Inspection[]
+  invoices            Invoice[]
+  reports             Report[]
+  customerPayments    CustomerPayment[]
+  inspectorPayments   InspectorPayment[]
+  auditLogs           AuditLog[]
+}
+ 
+// 2. USERS  (owner user auto-created with company)
+ 
+model User {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  username    String    @unique
+  password    String                   // bcrypt hashed
+  email       String?   @unique
+  fullName    String?
+  role        UserRole  @default(OWNER)
+  roleId      Int?                     // optional link to custom Role table
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  customRole  Role?     @relation(fields: [roleId], references: [id])
+  auditLogs   AuditLog[]
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  INSPECTOR
+  STAFF
+}
+
+// ROLES TABLE (custom role management per company)
+
+model Role {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  name        String                    // e.g. "Manager", "Technician"
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@unique([companyId, name])
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  feature     String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           Int      @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  companyId Int?
+  userId    Int?
+  action    String
+  entity    String?
+  entityId  Int?
+  details   String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([createdAt])
+}
+ 
+// 3. VEHICLE BRANDS
+
+model VehicleBrand {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  models    VehicleModel[]
+}
+
+// 4. VEHICLE MODELS
+ 
+model VehicleModel {
+  id        Int          @id @default(autoincrement())
+  brandId   Int
+  name      String
+  year      Int?
+  createdAt DateTime     @default(now())
+
+  brand     VehicleBrand @relation(fields: [brandId], references: [id])
+  vehicles  Vehicle[]
+
+  @@unique([brandId, name])
+}
+ 
+// 5. OWNERS  (vehicle owners / customers)
+ 
+model Owner {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  fullName    String
+  phone       String?
+  email       String?
+  address     String?
+  idNumber    String?   @unique   // National ID / passport
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  vehicleOwners   VehicleOwner[]
+  customerPayments CustomerPayment[]
+  invoices        Invoice[]
+}
+
+
+// 6. VEHICLES
+ 
+model Vehicle {
+  id           Int          @id @default(autoincrement())
+  companyId    Int
+  modelId      Int
+  plateNumber  String       @unique
+  color        String?
+  year         Int?
+  vin          String?      @unique   // Chassis number
+  mileage      Int?
+  status       VehicleStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  model            VehicleModel      @relation(fields: [modelId], references: [id])
+  vehicleOwners    VehicleOwner[]
+  vehicleInspectors VehicleInspector[]
+  inspections      Inspection[]
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  SCRAPPED
+}
+ 
+// 7. VEHICLE_OWNERS  (many-to-many)
+ 
+model VehicleOwner {
+  id          Int       @id @default(autoincrement())
+  vehicleId   Int
+  ownerId     Int
+  isPrimary   Boolean   @default(false)
+  fromDate    DateTime  @default(now())
+  toDate      DateTime?
+
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
+  owner       Owner     @relation(fields: [ownerId], references: [id])
+
+  @@unique([vehicleId, ownerId])
+}
+ 
+// 8. INSPECTORS
+ 
+model Inspector {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  fullName    String
+  phone       String?
+  email       String?
+  licenseNo   String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  vehicleInspectors VehicleInspector[]
+  inspections       Inspection[]
+  inspectorPayments InspectorPayment[]
+}
+ 
+// 9. VEHICLE_INSPECTORS  (assigned inspector per vehicle)
+ 
+model VehicleInspector {
+  id           Int       @id @default(autoincrement())
+  vehicleId    Int
+  inspectorId  Int
+  assignedAt   DateTime  @default(now())
+
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id])
+  inspector    Inspector @relation(fields: [inspectorId], references: [id])
+
+  @@unique([vehicleId, inspectorId])
+}
+ 
+// 10. INSPECTIONS
+ 
+model Inspection {
+  id            Int              @id @default(autoincrement())
+  companyId     Int
+  vehicleId     Int
+  inspectorId   Int
+  scheduledAt   DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  status        InspectionStatus @default(PENDING)
+  notes         String?          @db.Text
+  overallResult InspectionResult?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  company          Company            @relation(fields: [companyId], references: [id])
+  vehicle          Vehicle            @relation(fields: [vehicleId], references: [id])
+  inspector        Inspector          @relation(fields: [inspectorId], references: [id])
+  inspectionItems  InspectionItem[]
+  inspectionResults InspectionResultRecord[]
+  invoices         Invoice[]
+}
+
+enum InspectionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+  CONDITIONAL
+}
+ 
+// 11. INSPECTION_ITEMS  (checklist items)
+ 
+model InspectionItem {
+  id           Int      @id @default(autoincrement())
+  inspectionId Int
+  category     String   // e.g. "Engine", "Brakes", "Body"
+  itemName     String
+  isRequired   Boolean  @default(true)
+  sortOrder    Int      @default(0)
+
+  inspection        Inspection               @relation(fields: [inspectionId], references: [id])
+  inspectionResults InspectionResultRecord[]
+}
+ 
+// 12. INSPECTION_RESULTS  (result per item)
+ 
+model InspectionResultRecord {
+  id             Int          @id @default(autoincrement())
+  inspectionId   Int
+  itemId         Int
+  result         ItemResult
+  remarks        String?      @db.Text
+  photoUrl       String?
+  createdAt      DateTime     @default(now())
+
+  inspection     Inspection     @relation(fields: [inspectionId], references: [id])
+  item           InspectionItem @relation(fields: [itemId], references: [id])
+
+  @@unique([inspectionId, itemId])
+}
+
+enum ItemResult {
+  OK
+  DEFECTIVE
+  NEEDS_ATTENTION
+  NOT_APPLICABLE
+}
+ 
+// 13. INSPECTOR_PAYMENTS
+ 
+model InspectorPayment {
+  id           Int           @id @default(autoincrement())
+  companyId    Int
+  inspectorId  Int
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("USD")
+  paymentDate  DateTime      @default(now())
+  method       PaymentMethod @default(CASH)
+  reference    String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+
+  company      Company   @relation(fields: [companyId], references: [id])
+  inspector    Inspector @relation(fields: [inspectorId], references: [id])
+}
+
+ 
+// 14. CUSTOMER_PAYMENTS
+ 
+model CustomerPayment {
+  id           Int           @id @default(autoincrement())
+  companyId    Int
+  ownerId      Int
+  invoiceId    Int?
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("USD")
+  paymentDate  DateTime      @default(now())
+  method       PaymentMethod @default(CASH)
+  reference    String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+
+  company      Company   @relation(fields: [companyId], references: [id])
+  owner        Owner     @relation(fields: [ownerId], references: [id])
+  invoice      Invoice?  @relation(fields: [invoiceId], references: [id])
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CARD
+  OTHER
+}
+ 
+// 15. INVOICES
+ 
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  companyId     Int
+  ownerId       Int
+  inspectionId  Int?
+  invoiceNo     String        @unique
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  paidAmount    Decimal       @db.Decimal(10, 2) @default(0)
+  currency      String        @default("USD")
+  dueDate       DateTime?
+  status        InvoiceStatus @default(UNPAID)
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  owner            Owner             @relation(fields: [ownerId], references: [id])
+  inspection       Inspection?       @relation(fields: [inspectionId], references: [id])
+  transactions     PaymentTransaction[]
+  customerPayments CustomerPayment[]
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  CANCELLED
+}
+ 
+// 16. PAYMENT_TRANSACTIONS
+ 
+model PaymentTransaction {
+  id          Int           @id @default(autoincrement())
+  invoiceId   Int
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("USD")
+  method      PaymentMethod @default(CASH)
+  reference   String?
+  paidAt      DateTime      @default(now())
+  notes       String?
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+}
+ 
+// 17. REPORTS
+ 
+model Report {
+  id          Int        @id @default(autoincrement())
+  companyId   Int
+  type        ReportType
+  title       String
+  filePath    String?
+  generatedAt DateTime   @default(now())
+  parameters  Json?      // store filter params as JSON
+
+  company     Company @relation(fields: [companyId], references: [id])
+}
+
+enum ReportType {
+  INSPECTION_SUMMARY
+  PAYMENT_SUMMARY
+  INSPECTOR_PERFORMANCE
+  VEHICLE_HISTORY
+  REVENUE
+  CUSTOM
+}
