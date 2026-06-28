@@ -1,13 +1,22 @@
 import { prisma } from "../lib/prisma.js";
+import { resolveCompanyId, companyWhere } from "../lib/tenant.js";
 
 // POST /api/owners
 export const createOwner = async (req, res) => {
   try {
     const { companyId, fullName, phone, email, address, idNumber } = req.body;
-    const targetCompanyId = companyId || req.user?.companyId || 1;
+    const targetCompanyId = resolveCompanyId(req, companyId);
     if (!fullName) return res.status(400).json({ error: "fullName is required" });
+    if (!phone) return res.status(400).json({ error: "phone is required" });
     const owner = await prisma.owner.create({
-      data: { companyId: Number(targetCompanyId), fullName, phone, email, address, idNumber },
+      data: {
+        companyId: Number(targetCompanyId),
+        fullName,
+        phone,
+        email: email || null,
+        address: address || null,
+        idNumber: idNumber || null,
+      },
       include: { company: { select: { id: true, name: true } } },
     });
     res.status(201).json(owner);
@@ -22,8 +31,9 @@ export const createOwner = async (req, res) => {
 export const getAllOwners = async (req, res) => {
   try {
     const { companyId } = req.query;
+    const scope = companyWhere(req, companyId);
     const owners = await prisma.owner.findMany({
-      where: companyId ? { companyId: Number(companyId) } : undefined,
+      where: scope,
       include: {
         company: { select: { id: true, name: true } },
         vehicleOwners: { include: { vehicle: { include: { model: { include: { brand: true } } } } } },
@@ -61,7 +71,13 @@ export const updateOwner = async (req, res) => {
     const { fullName, phone, email, address, idNumber } = req.body;
     const owner = await prisma.owner.update({
       where: { id: Number(req.params.id) },
-      data: { fullName, phone, email, address, idNumber },
+      data: {
+        fullName,
+        phone,
+        email: email !== undefined ? (email || null) : undefined,
+        address: address !== undefined ? (address || null) : undefined,
+        idNumber: idNumber !== undefined ? (idNumber || null) : undefined,
+      },
     });
     res.json(owner);
   } catch (err) {

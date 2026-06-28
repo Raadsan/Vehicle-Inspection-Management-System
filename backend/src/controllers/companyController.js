@@ -8,33 +8,39 @@ const slugify = (name) =>
 // POST /api/companies
 export const createCompany = async (req, res) => {
   try {
-    const { name, email, phone, address, logo, ownerPassword } = req.body;
+    const { name, email, phone, address, logo, ownerPassword, ownerRoleId } = req.body;
     if (!name) return res.status(400).json({ error: "Company name is required" });
     if (!ownerPassword) return res.status(400).json({ error: "Owner password is required" });
 
     const hashedPassword = await bcrypt.hash(ownerPassword, 10);
     const username = slugify(name);
 
-    const company = await prisma.company.create({
-      data: {
-        name,
-        email,
-        phone,
-        address,
-        logo,
-        users: {
-          create: {
-            username,
-            password: hashedPassword,
-            email,
-            fullName: name,
-            role: "OWNER",
+    // Use a transaction to create company + default roles atomically
+    const company = await prisma.$transaction(async (tx) => {
+      const created = await tx.company.create({
+        data: {
+          name, email, phone, address, logo,
+          users: {
+            create: {
+              username, password: hashedPassword, email, fullName: name, role: "OWNER",
+              ...(ownerRoleId ? { roleId: Number(ownerRoleId) } : {}),
+            },
           },
         },
-      },
-      include: {
-        users: { select: { id: true, username: true, role: true, email: true } },
-      },
+        include: { users: { select: { id: true, username: true, role: true, email: true } } },
+      });
+
+      // Auto-create default roles for this company
+      await tx.role.createMany({
+        data: [
+          { companyId: created.id, name: "Company Owner", description: "Owner of the company" },
+          { companyId: created.id, name: "Inspector", description: "Vehicle inspector" },
+          { companyId: created.id, name: "Staff", description: "General staff member" },
+        ],
+        skipDuplicates: true,
+      });
+
+      return created;
     });
 
     res.status(201).json(company);
@@ -49,7 +55,7 @@ export const getAllCompanies = async (req, res) => {
   try {
     const companies = await prisma.company.findMany({
       include: {
-        users: { select: { id: true, username: true, role: true } },
+        users: { select: { id: true, username: true, role: true, roleId: true } },
         _count: { select: { vehicles: true, inspectors: true, inspections: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -66,7 +72,7 @@ export const getCompanyById = async (req, res) => {
     const company = await prisma.company.findUnique({
       where: { id: Number(req.params.id) },
       include: {
-        users: { select: { id: true, username: true, role: true, email: true } },
+        users: { select: { id: true, username: true, role: true, email: true, roleId: true } },
         owners: true,
         inspectors: true,
         _count: { select: { vehicles: true, inspections: true, invoices: true } },
@@ -82,11 +88,22 @@ export const getCompanyById = async (req, res) => {
 // PUT /api/companies/:id
 export const updateCompany = async (req, res) => {
   try {
-    const { name, email, phone, address, logo, isActive } = req.body;
+    const { name, email, phone, address, logo, isActive, ownerRoleId } = req.body;
+    const companyId = Number(req.params.id);
+
     const company = await prisma.company.update({
-      where: { id: Number(req.params.id) },
+      where: { id: companyId },
       data: { name, email, phone, address, logo, isActive },
     });
+
+    // If ownerRoleId is provided, update the owner user's roleId
+    if (ownerRoleId !== undefined) {
+      await prisma.user.updateMany({
+        where: { companyId, role: "OWNER" },
+        data: { roleId: ownerRoleId ? Number(ownerRoleId) : null },
+      });
+    }
+
     res.json(company);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Company not found" });

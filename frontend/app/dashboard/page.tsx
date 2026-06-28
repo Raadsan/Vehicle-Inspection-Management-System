@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import {
   Briefcase,
   DollarSign,
@@ -45,7 +45,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
 import {
   dashboardPageClass,
   dashboardPageStyle,
@@ -68,6 +67,9 @@ import {
   chartTooltipStyle,
   chartAxisTick,
 } from "@/lib/dashboard-ui"
+import { dashboardApi, DashboardStats } from "@/lib/api"
+import { getStoredUser } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
 // ─── Blue Color Palette definitions for Charts ────────────────────────────────
 const bluePalette = {
@@ -86,44 +88,7 @@ const blueVariants = [
   bluePalette.paleBlue,
 ]
 
-// ─── Stat Cards Config ────────────────────────────────────────────────────────
-const statsData = [
-  {
-    title: "Total Inspections",
-    value: "1,284",
-    icon: Briefcase,
-    trend: "+12.5%",
-    trendUp: true,
-  },
-  {
-    title: "Gross Revenue",
-    value: "$24,800",
-    icon: DollarSign,
-    trend: "+8.2%",
-    trendUp: true,
-  },
-  {
-    title: "Pending Inspections",
-    value: "198",
-    icon: Clock,
-    trend: "-2.4%",
-    trendUp: false,
-  },
-  {
-    title: "Registered Vehicles",
-    value: "642",
-    icon: Car,
-    trend: "+15.1%",
-    trendUp: true,
-  },
-  {
-    title: "Active Inspectors",
-    value: "38",
-    icon: Wrench,
-    trend: "Stable",
-    trendUp: null,
-  },
-]
+// ─── Stat Cards Config (values loaded from API in component) ─────────────────
 
 // ─── Recharts Data ────────────────────────────────────────────────────────────
 const weeklyAnalytics = [
@@ -204,6 +169,20 @@ const initialInspections = [
 export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const user = getStoredUser()
+
+  useEffect(() => {
+    dashboardApi.getStats().then(setStats).catch(() => {})
+  }, [])
+
+  const statsData = [
+    { title: "Total Inspections", value: String(stats?.totalInspections ?? "—"), icon: Briefcase, trend: "", trendUp: true },
+    { title: "Pending Inspections", value: String(stats?.pendingInspections ?? "—"), icon: Clock, trend: "", trendUp: false },
+    { title: "Registered Vehicles", value: String(stats?.totalVehicles ?? "—"), icon: Car, trend: "", trendUp: true },
+    { title: "Vehicle Owners", value: String(stats?.totalOwners ?? "—"), icon: Users, trend: "", trendUp: true },
+    { title: "Completed", value: String(stats?.completedInspections ?? "—"), icon: CheckCircle, trend: "", trendUp: true },
+  ]
 
   const filteredInspections = initialInspections.filter((ins) => {
     const matchesSearch =
@@ -231,7 +210,9 @@ export default function DashboardPage() {
       <div className={pageHeaderWrapperClass}>
         <h1 className={pageHeaderTitleClass}>Admin Dashboard</h1>
         <p className={pageHeaderSubtitleClass}>
-          Hirshabelle State of Somalia — Ministry of Youth and Sports
+          {user?.companyName
+            ? `${user.companyName} — Company Dashboard`
+            : "Hirshabelle State of Somalia — Ministry of Youth and Sports"}
         </p>
       </div>
 

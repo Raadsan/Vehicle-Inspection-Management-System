@@ -1,182 +1,191 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
-import { Loader2, Save, Shield } from "lucide-react"
+import React, { useState, useEffect, useCallback } from "react"
+import { Edit, Eye, Loader2, Plus, Shield, Trash2 } from "lucide-react"
 import toast from "react-hot-toast"
-import {
-  roleApi,
-  permissionApi,
-  rolePermissionApi,
-  Role,
-  Permission,
-} from "@/lib/api"
-import { Button } from "@/components/ui/button"
+import { roleApi, Role } from "@/lib/api"
+import { RolePermissionsEditor } from "@/components/role-permissions-editor"
 import { cn } from "@/lib/utils"
+import {
+  countGrantedPermissions,
+  createEmptyRolePermissions,
+  type PermissionAction,
+  type RolePermissionMap,
+} from "@/lib/navigation-config"
+import {
+  getRolePagePermissions,
+  saveRolePagePermissions,
+} from "@/lib/role-permissions-store"
+import { logAudit } from "@/lib/audit-log"
 import {
   dashboardPageClass,
   dashboardPageStyle,
   pageHeaderTitleClass,
   pageHeaderSubtitleClass,
   pageHeaderWrapperClass,
-  dashboardCardClass,
 } from "@/lib/dashboard-ui"
 
-const selectCls =
-  "w-full max-w-md h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal"
+const ACTION_BADGE_ICONS = [
+  { key: "add" as const, Icon: Plus },
+  { key: "view" as const, Icon: Eye },
+  { key: "edit" as const, Icon: Edit },
+  { key: "delete" as const, Icon: Trash2 },
+]
 
 export default function RolePermissionsPage() {
   const [roles, setRoles] = useState<Role[]>([])
-  const [permissions, setPermissions] = useState<Permission[]>([])
-  const [selectedRoleId, setSelectedRoleId] = useState<string>("")
-  const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [permMap, setPermMap] = useState<Record<number, RolePermissionMap>>({})
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
+  const [draftPerms, setDraftPerms] = useState<RolePermissionMap>(createEmptyRolePermissions())
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [rolesData, permsData] = await Promise.all([
-          roleApi.getAll(),
-          permissionApi.getAll(),
-        ])
-        setRoles(rolesData)
-        setPermissions(permsData)
-      } catch (err: any) {
-        toast.error("Failed to load data: " + (err.response?.data?.error || err.message))
-      } finally {
-        setLoading(false)
+  const loadRoles = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await roleApi.getAll()
+      setRoles(data)
+      const map: Record<number, RolePermissionMap> = {}
+      for (const role of data) {
+        map[role.id] = getRolePagePermissions(role.id)
       }
+      setPermMap(map)
+    } catch (err: any) {
+      toast.error("Failed to load roles: " + (err.response?.data?.error || err.message))
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
 
   useEffect(() => {
-    if (!selectedRoleId) {
-      setAssignedIds(new Set())
-      return
-    }
-    const loadAssignments = async () => {
-      try {
-        const data = await rolePermissionApi.getByRole(Number(selectedRoleId))
-        setAssignedIds(new Set(data.map((a) => a.permissionId)))
-      } catch (err: any) {
-        toast.error("Failed to load permissions: " + (err.response?.data?.error || err.message))
-      }
-    }
-    loadAssignments()
-  }, [selectedRoleId])
+    loadRoles()
+  }, [loadRoles])
 
-  const togglePermission = (id: number) => {
-    setAssignedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const openEditor = (role: Role) => {
+    setEditingRole(role)
+    setDraftPerms({ ...(permMap[role.id] || getRolePagePermissions(role.id)) })
+  }
+
+  const togglePermission = (pageKey: string, action: PermissionAction) => {
+    setDraftPerms((prev) => ({
+      ...prev,
+      [pageKey]: {
+        ...prev[pageKey],
+        [action]: !prev[pageKey]?.[action],
+      },
+    }))
   }
 
   const handleSave = async () => {
-    if (!selectedRoleId) return
+    if (!editingRole) return
     setSaving(true)
     try {
-      await rolePermissionApi.setForRole(Number(selectedRoleId), Array.from(assignedIds))
-      toast.success("Role permissions updated")
-    } catch (err: any) {
-      toast.error("Failed to save: " + (err.response?.data?.error || err.message))
+      saveRolePagePermissions(editingRole.id, draftPerms)
+      setPermMap((prev) => ({ ...prev, [editingRole.id]: draftPerms }))
+      await logAudit({
+        action: "UPDATE",
+        entity: "RolePermission",
+        entityId: editingRole.id,
+        details: `Updated page permissions for role "${editingRole.name}"`,
+      })
+      toast.success(`Permissions saved for "${editingRole.name}"`)
+      setEditingRole(null)
+    } catch {
+      toast.error("Failed to save permissions")
     } finally {
       setSaving(false)
     }
   }
 
-  const grouped = permissions.reduce<Record<string, Permission[]>>((acc, p) => {
-    if (!acc[p.feature]) acc[p.feature] = []
-    acc[p.feature].push(p)
-    return acc
-  }, {})
-
   return (
-    <div className={cn(dashboardPageClass, "space-y-5")} style={dashboardPageStyle}>
+    <div className={cn(dashboardPageClass, "space-y-6")} style={dashboardPageStyle}>
       <div className={pageHeaderWrapperClass}>
         <h1 className={pageHeaderTitleClass}>Role Permissions</h1>
-        <p className={pageHeaderSubtitleClass}>Assign permissions to roles</p>
+        <p className={pageHeaderSubtitleClass}>
+          Assign View · Add · Edit · Delete for every sidebar page
+        </p>
       </div>
 
-      <div className={dashboardCardClass}>
-        <div className="px-5 py-4 border-b border-zinc-100 dark:border-border flex flex-wrap items-end gap-4 justify-between">
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-[#0a2744] dark:text-zinc-300">Select Role</label>
-            <select
-              value={selectedRoleId}
-              onChange={(e) => setSelectedRoleId(e.target.value)}
-              className={selectCls}
-            >
-              <option value="">Choose a role...</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </div>
-          {selectedRoleId && (
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="h-10 bg-[#1565c0] hover:bg-[#0a2744] text-white font-semibold px-5 rounded-md flex items-center gap-2 text-sm"
-            >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save Permissions
-            </Button>
-          )}
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 className="size-7 animate-spin text-[#1565c0]" />
         </div>
+      ) : roles.length === 0 ? (
+        <div className="text-center py-20 text-zinc-400 text-sm border border-dashed border-zinc-200 rounded-xl">
+          No roles yet. Create roles first on the Roles page.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {roles.map((role) => {
+            const perms = permMap[role.id] || createEmptyRolePermissions()
+            const granted = countGrantedPermissions(perms)
 
-        {loading ? (
-          <div className="py-16 text-center">
-            <Loader2 className="size-6 animate-spin mx-auto text-primary" />
-            <p className="text-sm text-muted-foreground mt-2">Loading...</p>
-          </div>
-        ) : !selectedRoleId ? (
-          <div className="py-16 text-center text-zinc-400 text-sm">
-            Select a role to manage its permissions
-          </div>
-        ) : permissions.length === 0 ? (
-          <div className="py-16 text-center text-zinc-400 text-sm">
-            No permissions defined yet. Add permissions via the API or database seed.
-          </div>
-        ) : (
-          <div className="p-5 space-y-6">
-            {Object.entries(grouped).map(([feature, perms]) => (
-              <div key={feature}>
-                <h3 className="text-sm font-semibold text-[#0a2744] dark:text-white mb-3 flex items-center gap-2">
-                  <Shield className="size-4 text-[#1565c0]" />
-                  {feature}
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {perms.map((p) => (
-                    <label
-                      key={p.id}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-zinc-100 dark:border-border hover:bg-zinc-50 dark:hover:bg-muted/20 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={assignedIds.has(p.id)}
-                        onChange={() => togglePermission(p.id)}
-                        className="mt-0.5 size-4 accent-[#1565c0]"
-                      />
-                      <div>
-                        <span className="text-sm font-medium text-foreground">{p.action}</span>
-                        <span className="text-[11px] text-zinc-400 block font-normal">{p.code}</span>
-                        {p.description && (
-                          <span className="text-[11px] text-zinc-500 block font-normal">{p.description}</span>
-                        )}
-                      </div>
-                    </label>
-                  ))}
+            return (
+              <div
+                key={role.id}
+                className="bg-white dark:bg-card border border-zinc-200 dark:border-border rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+              >
+                <div className="p-5">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-[#1565c0]/10 flex items-center justify-center shrink-0">
+                      <Shield className="size-5 text-[#1565c0]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-zinc-900 dark:text-white text-sm truncate">
+                        {role.name}
+                      </h3>
+                      {role.description && (
+                        <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{role.description}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mb-4">
+                    {ACTION_BADGE_ICONS.map(({ key, Icon }) => {
+                      const count = Object.values(perms).filter((p) => p[key]).length
+                      return (
+                        <span
+                          key={key}
+                          title={`${count} pages`}
+                          className={cn(
+                            "w-7 h-7 rounded-md flex items-center justify-center",
+                            count > 0
+                              ? "bg-[#1565c0] text-white"
+                              : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
+                          )}
+                        >
+                          <Icon className="size-3.5" />
+                        </span>
+                      )
+                    })}
+                    <span className="text-[11px] text-zinc-400 ml-1">{granted} total</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openEditor(role)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-zinc-200 dark:border-border rounded-lg text-sm text-zinc-700 dark:text-zinc-200 hover:bg-[#1565c0] hover:text-white hover:border-[#1565c0] font-medium transition-all"
+                  >
+                    <Edit className="size-3.5" />
+                    Edit Permissions
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
+
+      {editingRole && (
+        <RolePermissionsEditor
+          role={editingRole}
+          permissions={draftPerms}
+          saving={saving}
+          onToggle={togglePermission}
+          onSave={handleSave}
+          onClose={() => setEditingRole(null)}
+        />
+      )}
     </div>
   )
 }

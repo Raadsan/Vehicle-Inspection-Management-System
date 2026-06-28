@@ -36,6 +36,7 @@ export interface User {
   createdAt: string;
   customRole?: Role;
   company?: { id: number; name: string };
+  companyName?: string;
 }
 
 export interface Role {
@@ -44,6 +45,10 @@ export interface Role {
   name: string;
   description?: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  company?: { id: number; name: string };
+  _count?: { users: number };
 }
 
 export interface Permission {
@@ -95,11 +100,17 @@ export interface Owner {
   id: number;
   companyId: number;
   fullName: string;
-  phone?: string;
+  phone: string;
   email?: string;
   address?: string;
-  nationalId?: string;
   idNumber?: string;
+}
+
+export interface VehicleColor {
+  id: number;
+  name: string;
+  createdAt?: string;
+  _count?: { vehicles: number };
 }
 
 export interface Vehicle {
@@ -107,6 +118,7 @@ export interface Vehicle {
   companyId: number;
   ownerId?: number;
   modelId?: number;
+  colorId?: number;
   plateNumber: string;
   color?: string;
   year?: number;
@@ -114,8 +126,11 @@ export interface Vehicle {
   mileage?: number;
   logbookNumber?: string;
   status: "ACTIVE" | "INACTIVE" | "SCRAPPED" | "UNDER_INSPECTION" | "BANNED";
+  registrationFeeId?: number;
   model?: VehicleModel;
+  vehicleColor?: VehicleColor;
   owner?: Owner;
+  registrationFee?: RegistrationFee;
 }
 
 export interface VehicleBrand {
@@ -133,6 +148,7 @@ export interface VehicleModel {
   year?: number;
   description?: string;
   createdBy?: string;
+  createdAt?: string;
   brand?: VehicleBrand;
 }
 
@@ -151,7 +167,7 @@ export interface Inspection {
   id: number;
   companyId: number;
   vehicleId: number;
-  inspectorId: number;
+  inspectorId?: number | null;
   scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -162,6 +178,27 @@ export interface Inspection {
   inspector?: Inspector;
   company?: { id: number; name: string };
   createdAt?: string;
+}
+
+export interface InspectionTemplateItem {
+  id: number;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RegistrationFee {
+  id: number;
+  companyId: number;
+  purpose: string;
+  amount: number;
+  currency: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  company?: { id: number; name: string };
 }
 
 // ─── API Helper Envelopes ────────────────────────────────────────────────────
@@ -175,11 +212,11 @@ export const userApi = {
     const res = await api.get<User>(`/users/${id}`);
     return res.data;
   },
-  create: async (data: Partial<User> & { password?: string }) => {
+  create: async (data: Partial<User> & { password?: string; roleId?: number }) => {
     const res = await api.post<User>("/users", data);
     return res.data;
   },
-  update: async (id: number, data: Partial<User> & { password?: string }) => {
+  update: async (id: number, data: Partial<User> & { password?: string; roleId?: number | "" }) => {
     const res = await api.put<User>(`/users/${id}`, data);
     return res.data;
   },
@@ -257,6 +294,18 @@ export const auditLogApi = {
     const res = await api.get<AuditLog>(`/audit-logs/${id}`);
     return res.data;
   },
+  create: async (data: {
+    action: string;
+    entity?: string;
+    entityId?: number;
+    details?: string;
+    userId?: number;
+    companyId?: number;
+    ipAddress?: string;
+  }) => {
+    const res = await api.post<AuditLog>("/audit-logs", data);
+    return res.data;
+  },
 };
 
 export const companyApi = {
@@ -324,6 +373,29 @@ export const vehicleApi = {
   },
   delete: async (id: number) => {
     const res = await api.delete(`/vehicles/${id}`);
+    return res.data;
+  },
+};
+
+export const vehicleColorApi = {
+  getAll: async () => {
+    const res = await api.get<VehicleColor[]>("/vehicle-colors");
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<VehicleColor>(`/vehicle-colors/${id}`);
+    return res.data;
+  },
+  create: async (data: { name: string }) => {
+    const res = await api.post<VehicleColor>("/vehicle-colors", data);
+    return res.data;
+  },
+  update: async (id: number, data: { name: string }) => {
+    const res = await api.put<VehicleColor>(`/vehicle-colors/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/vehicle-colors/${id}`);
     return res.data;
   },
 };
@@ -397,6 +469,22 @@ export const inspectorApi = {
   },
 };
 
+export interface DashboardStats {
+  totalVehicles: number;
+  totalOwners: number;
+  totalInspections: number;
+  pendingInspections: number;
+  completedInspections: number;
+  recentInspections: Inspection[];
+}
+
+export const dashboardApi = {
+  getStats: async () => {
+    const res = await api.get<DashboardStats>("/dashboard/stats");
+    return res.data;
+  },
+};
+
 export const inspectionApi = {
   getAll: async (params?: { companyId?: number; status?: string }) => {
     const res = await api.get<Inspection[]>("/inspections", { params });
@@ -418,12 +506,58 @@ export const inspectionApi = {
     const res = await api.delete(`/inspections/${id}`);
     return res.data;
   },
-  approve: async (id: number, notes?: string) => {
-    const res = await api.post<Inspection>(`/inspections/${id}/approve`, { notes });
+  approve: async (id: number, data?: { notes?: string }) => {
+    const res = await api.post<Inspection>(`/inspections/${id}/approve`, data || {});
     return res.data;
   },
-  reject: async (id: number, notes?: string) => {
-    const res = await api.post<Inspection>(`/inspections/${id}/reject`, { notes });
+  reject: async (id: number, data?: { notes?: string }) => {
+    const res = await api.post<Inspection>(`/inspections/${id}/reject`, data || {});
+    return res.data;
+  },
+};
+
+export const inspectionTemplateItemApi = {
+  getAll: async () => {
+    const res = await api.get<InspectionTemplateItem[]>("/inspection-template-items");
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<InspectionTemplateItem>(`/inspection-template-items/${id}`);
+    return res.data;
+  },
+  create: async (data: { name: string; sortOrder?: number }) => {
+    const res = await api.post<InspectionTemplateItem>("/inspection-template-items", data);
+    return res.data;
+  },
+  update: async (id: number, data: { name?: string; isActive?: boolean; sortOrder?: number }) => {
+    const res = await api.put<InspectionTemplateItem>(`/inspection-template-items/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/inspection-template-items/${id}`);
+    return res.data;
+  },
+};
+
+export const registrationFeeApi = {
+  getAll: async (params?: { companyId?: number }) => {
+    const res = await api.get<RegistrationFee[]>("/registration-fees", { params });
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<RegistrationFee>(`/registration-fees/${id}`);
+    return res.data;
+  },
+  create: async (data: { purpose: string; amount: number; currency?: string; companyId?: number }) => {
+    const res = await api.post<RegistrationFee>("/registration-fees", data);
+    return res.data;
+  },
+  update: async (id: number, data: { purpose?: string; amount?: number; currency?: string; isActive?: boolean }) => {
+    const res = await api.put<RegistrationFee>(`/registration-fees/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/registration-fees/${id}`);
     return res.data;
   },
 };

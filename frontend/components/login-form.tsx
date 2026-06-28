@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import toast from "react-hot-toast"
+import { hydrateUserPermissions } from "@/lib/auth"
 
 export function LoginForm({
   className,
@@ -47,6 +48,7 @@ export function LoginForm({
       // Store JWT token and user info
       localStorage.setItem("token", data.token)
       localStorage.setItem("user", JSON.stringify(data.user))
+      hydrateUserPermissions(data.user?.roleId)
 
       toast.success("Login successful! Redirecting...")
 

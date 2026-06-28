@@ -87,6 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => {
     localStorage.removeItem("token")
     localStorage.removeItem("user")
+    localStorage.removeItem("userPagePermissions")
     window.location.href = "/login"
   }
 

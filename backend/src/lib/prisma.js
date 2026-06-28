@@ -11,3 +11,9 @@ if (!databaseUrl) {
 const adapter = new PrismaMariaDb(databaseUrl);
 
 export const prisma = new PrismaClient({ adapter });
+
+if (!prisma.vehicleColor) {
+  throw new Error(
+    "Prisma client is out of date (missing VehicleColor). Run `npm run db:generate` in backend, then restart the server."
+  );
+}

@@ -12,11 +12,8 @@ import {
   UserCircleIcon,
   FileTextIcon,
   CreditCardIcon,
-  WrenchIcon,
   Building2,
   Settings2Icon,
-  TagIcon,
-  CheckCircleIcon,
   ChevronRightIcon,
 } from "lucide-react"
 import {
@@ -38,6 +35,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { NavUser } from "@/components/nav-user"
+import { getStoredUser, canViewPage, type StoredUser } from "@/lib/auth"
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
 // roles: undefined = visible to all, or array of roles that CAN see it
@@ -89,30 +87,27 @@ const navItems: NavItem[] = [
       { title: "Vehicles", url: "/dashboard/vehicles" },
       { title: "Brands", url: "/dashboard/brands" },
       { title: "Models", url: "/dashboard/models" },
+      { title: "Colors", url: "/dashboard/colors" },
+      { title: "Registration Fees", url: "/dashboard/registration-fees" },
     ],
   },
   {
-    title: "Inspectors",
-    url: "/dashboard/inspectors",
-    icon: WrenchIcon,
-    roles: ["SUPER_ADMIN", "STAFF"],
-  },
-  {
-    title: "Inspections",
+    title: "Vehicle Inspect",
     url: "/dashboard/inspections",
     icon: ClipboardListIcon,
     children: [
-      { title: "All Inspections", url: "/dashboard/inspections" },
-      { title: "Schedule Inspection", url: "/dashboard/inspections/create" },
+      { title: "Vehicle Inspections", url: "/dashboard/inspections" },
       { title: "Inspection Items", url: "/dashboard/inspections/items" },
     ],
   },
-  // Approval queue — admin only
   {
-    title: "Awaiting Approval",
+    title: "Inspection Approvals",
     url: "/dashboard/inspections/approval",
-    icon: CheckCircleIcon,
-    roles: ["SUPER_ADMIN"],
+    icon: ClipboardListIcon,
+    children: [
+      { title: "Awaiting Approval", url: "/dashboard/inspections/approval" },
+      { title: "Approved", url: "/dashboard/inspections/approved" },
+    ],
   },
   {
     title: "Payments",
@@ -121,7 +116,6 @@ const navItems: NavItem[] = [
     roles: ["SUPER_ADMIN", "STAFF"],
     children: [
       { title: "Customer Payments", url: "/dashboard/payments/customers" },
-      { title: "Inspector Payments", url: "/dashboard/payments/inspectors" },
       { title: "Invoices", url: "/dashboard/payments/invoices" },
       { title: "Transactions", url: "/dashboard/payments/transactions" },
     ],
@@ -150,33 +144,28 @@ const navItems: NavItem[] = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
-  // Read user role from localStorage
-  const [userRole, setUserRole] = React.useState<string | null>(null)
+  const [user, setUser] = React.useState<StoredUser | null>(null)
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("user")
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          setUserRole(parsed?.role || null)
-        }
-      } catch {
-        setUserRole(null)
-      }
-    }
+    setUser(getStoredUser())
   }, [])
+
+  const userRole = user?.role ?? null
 
   const isActive = (url: string) => {
     if (url === "/dashboard") return pathname === "/dashboard"
     return pathname.startsWith(url)
   }
 
-  // Filter nav items based on user role
-  const visibleItems = navItems.filter((item) => {
-    if (!item.roles) return true // visible to all
-    if (!userRole) return true  // not loaded yet, show all
-    return item.roles.includes(userRole)
-  })
+  const itemVisible = (item: NavItem) => {
+    if (item.children) {
+      return item.children.some((child) => canViewPage(child.url, user))
+    }
+    return canViewPage(item.url, user)
+  }
+
+  const visibleItems = navItems.filter(itemVisible)
+  const visibleChildren = (item: NavItem) =>
+    item.children?.filter((child) => canViewPage(child.url, user)) ?? []
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -221,7 +210,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub className="ml-5 mt-1 border-l border-zinc-100 pl-2 gap-1">
-                        {item.children.map((child) => (
+                        {visibleChildren(item).map((child) => (
                           <SidebarMenuSubItem key={child.title}>
                             <SidebarMenuSubButton
                               asChild

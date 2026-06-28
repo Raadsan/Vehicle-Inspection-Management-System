@@ -1,9 +1,9 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Search, Plus, Edit, Eye, Trash2, Loader2, Car } from "lucide-react"
+import { Search, Plus, Edit, Eye, Trash2, Loader2, DollarSign } from "lucide-react"
 import toast from "react-hot-toast"
-import { vehicleApi, ownerApi, vehicleBrandApi, vehicleModelApi, Vehicle, Owner, VehicleBrand, VehicleModel } from "@/lib/api"
+import { vehicleApi, ownerApi, vehicleBrandApi, vehicleModelApi, vehicleColorApi, registrationFeeApi, Vehicle, Owner, VehicleBrand, VehicleModel, VehicleColor, RegistrationFee } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -12,7 +12,7 @@ import {
   dashboardPageClass, dashboardPageStyle, pageHeaderTitleClass, pageHeaderSubtitleClass,
   pageHeaderWrapperClass, dashboardCardClass, dashboardTableHeaderClass, dashboardTableHeadRowClass,
   dashboardTableHeadClass, dashboardTableBodyRowClass, dashboardTableCellClass, dashboardTableIdClass,
-  dashboardStatusBadgeClass, formatStatusLabel,
+  dashboardStatusBadgeClass, formatStatusLabel, dashboardAddButtonClass,
 } from "@/lib/dashboard-ui"
 
 const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground"
@@ -25,6 +25,8 @@ export default function VehiclesPage() {
   const [owners, setOwners] = useState<Owner[]>([])
   const [brands, setBrands] = useState<VehicleBrand[]>([])
   const [models, setModels] = useState<VehicleModel[]>([])
+  const [colors, setColors] = useState<VehicleColor[]>([])
+  const [registrationFees, setRegistrationFees] = useState<RegistrationFee[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
@@ -34,32 +36,43 @@ export default function VehiclesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isViewOpen, setIsViewOpen] = useState(false)
   const [selected, setSelected] = useState<Vehicle | null>(null)
-  
+
   const [ownerId, setOwnerId] = useState<number>(0)
   const [brandId, setBrandId] = useState<number | "">("")
   const [modelId, setModelId] = useState<number | "">("")
   const [plateNumber, setPlateNumber] = useState("")
   const [vin, setVin] = useState("")
-  const [color, setColor] = useState("")
+  const [colorId, setColorId] = useState<number | "">("")
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [mileage, setMileage] = useState<number>(0)
   const [logbookNumber, setLogbookNumber] = useState("")
   const [status, setStatus] = useState<Vehicle["status"]>("ACTIVE")
+  const [registrationFeeId, setRegistrationFeeId] = useState<number | "">("")
+  const [customFeeAmount, setCustomFeeAmount] = useState("")
+  const [useCustomFee, setUseCustomFee] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [vehs, ows, brandsData, modelsData] = await Promise.all([
+      const [vehs, ows, brandsData, modelsData, colorsData, fees] = await Promise.all([
         vehicleApi.getAll(),
         ownerApi.getAll(),
         vehicleBrandApi.getAll(),
-        vehicleModelApi.getAll()
+        vehicleModelApi.getAll(),
+        vehicleColorApi.getAll(),
+        registrationFeeApi.getAll({ companyId })
       ])
       setVehicles(vehs)
       setOwners(ows)
       setBrands(brandsData)
       setModels(modelsData)
+      setColors(colorsData)
+      setRegistrationFees(fees)
     } catch (err: any) {
       toast.error("Failed: " + (err.response?.data?.error || err.message))
     } finally {
@@ -81,17 +94,31 @@ export default function VehiclesPage() {
     if (!modelId) { toast.error("Please select a model"); return }
     setSubmitting(true)
     try {
+      let finalRegistrationFeeId: number | undefined = undefined
+      if (useCustomFee && customFeeAmount) {
+        const newFee = await registrationFeeApi.create({
+          purpose: `Custom Fee - ${plateNumber}`,
+          amount: Number(customFeeAmount),
+          currency: "USD",
+          companyId
+        })
+        finalRegistrationFeeId = newFee.id
+      } else if (registrationFeeId) {
+        finalRegistrationFeeId = Number(registrationFeeId)
+      }
+
       await vehicleApi.create({
         companyId,
         ownerId: Number(ownerId),
         modelId: Number(modelId),
         plateNumber,
         vin: vin || undefined,
-        color: color || undefined,
+        colorId: colorId ? Number(colorId) : undefined,
         year: year || undefined,
         mileage: mileage || undefined,
         logbookNumber: logbookNumber || undefined,
-        status
+        status,
+        registrationFeeId: finalRegistrationFeeId
       })
       toast.success("Vehicle registered")
       setIsAddOpen(false)
@@ -109,16 +136,32 @@ export default function VehiclesPage() {
     if (!modelId) { toast.error("Please select a model"); return }
     setSubmitting(true)
     try {
+      let finalRegistrationFeeId: number | undefined = selected.registrationFeeId
+      if (useCustomFee && customFeeAmount) {
+        const newFee = await registrationFeeApi.create({
+          purpose: `Custom Fee - ${plateNumber}`,
+          amount: Number(customFeeAmount),
+          currency: "USD",
+          companyId
+        })
+        finalRegistrationFeeId = newFee.id
+      } else if (registrationFeeId) {
+        finalRegistrationFeeId = Number(registrationFeeId)
+      } else {
+        finalRegistrationFeeId = undefined
+      }
+
       await vehicleApi.update(selected.id, {
         ownerId: Number(ownerId),
         modelId: Number(modelId),
         plateNumber,
         vin: vin || undefined,
-        color: color || undefined,
+        colorId: colorId ? Number(colorId) : undefined,
         year: year || undefined,
         mileage: mileage || undefined,
         logbookNumber: logbookNumber || undefined,
-        status
+        status,
+        registrationFeeId: finalRegistrationFeeId
       })
       toast.success("Vehicle updated")
       setIsEditOpen(false)
@@ -151,11 +194,14 @@ export default function VehiclesPage() {
     setModelId("")
     setPlateNumber("")
     setVin("")
-    setColor("")
+    setColorId("")
     setYear(new Date().getFullYear())
     setMileage(0)
     setLogbookNumber("")
     setStatus("ACTIVE")
+    setRegistrationFeeId("")
+    setCustomFeeAmount("")
+    setUseCustomFee(false)
     setIsAddOpen(true)
   }
 
@@ -166,19 +212,22 @@ export default function VehiclesPage() {
     setModelId(v.modelId || "")
     setPlateNumber(v.plateNumber)
     setVin(v.vin || "")
-    setColor(v.color || "")
+    setColorId(v.colorId || "")
     setYear(v.year || new Date().getFullYear())
     setMileage(v.mileage || 0)
     setLogbookNumber(v.logbookNumber || "")
     setStatus(v.status)
+    setRegistrationFeeId(v.registrationFeeId || "")
+    setCustomFeeAmount("")
+    setUseCustomFee(false)
     setIsEditOpen(true)
   }
 
   const statusBadge: Record<string, string> = {
     ACTIVE: "bg-emerald-600 text-white",
-    INACTIVE: "bg-zinc-400 text-white",
+    INACTIVE: "bg-rose-600 text-white",
     UNDER_INSPECTION: "bg-[#1565c0] text-white",
-    BANNED: "bg-rose-600 text-white"
+    BANNED: "bg-rose-900 text-white"
   }
 
   const filtered = vehicles.filter(v => {
@@ -193,6 +242,15 @@ export default function VehiclesPage() {
     ) && (statusFilter ? v.status === statusFilter : true)
   })
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filtered.length / pageSize)
+  const paginatedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter])
+
   // Filter models based on selected brand
   const formModels = brandId ? models.filter(m => m.brandId === Number(brandId)) : []
 
@@ -203,23 +261,43 @@ export default function VehiclesPage() {
         <p className={pageHeaderSubtitleClass}>Manage registered vehicles in the system</p>
       </div>
 
+      {/* Unified Table & Controls Box Layout */}
       <div className={dashboardCardClass}>
+        {/* Filters row inside the card */}
         <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 dark:border-border">
-          <span className="text-sm font-semibold text-zinc-500">{filtered.length} of {vehicles.length} vehicles</span>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-zinc-500 font-medium font-sans">Show</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="h-9 px-2 border border-zinc-200 dark:border-border rounded bg-white dark:bg-muted/20 outline-none text-xs text-foreground"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 px-3 border border-zinc-200 dark:border-border rounded-md text-sm font-normal bg-white dark:bg-muted/20 focus:border-[#1565c0] outline-none text-foreground">
+              className="h-9 px-3 border border-zinc-200 dark:border-border rounded text-xs bg-white dark:bg-muted/20 outline-none text-foreground">
               <option value="">All Status</option>
               {STATUSES.map(s => <option key={s} value={s}>{formatStatusLabel(s)}</option>)}
             </select>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input type="text" placeholder="Plate, VIN, Brand, Logbook..." value={search}
+              <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input type="text" placeholder="Search..." value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-56 pl-9 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded-md outline-none focus:border-[#1565c0] text-sm font-normal text-foreground" />
+                className="h-9 w-52 pl-8 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded outline-none text-xs text-foreground" />
             </div>
-            <Button onClick={openAdd} className="h-10 bg-[#1565c0] hover:bg-[#0a2744] text-white font-semibold px-5 rounded-md flex items-center gap-2 shadow-sm text-sm">
-              <Plus className="size-4.5" /><span>Add Vehicle</span>
+            <Button onClick={openAdd} className={dashboardAddButtonClass}>
+              <Plus className="size-4" /><span>Add Vehicle</span>
             </Button>
           </div>
         </div>
@@ -228,7 +306,7 @@ export default function VehiclesPage() {
           <Table className="w-full">
             <TableHeader className={dashboardTableHeaderClass}>
               <TableRow className={dashboardTableHeadRowClass}>
-                {["#", "Plate Number", "Brand & Model", "Owner", "Logbook No", "VIN", "Year / Color", "Status", "Actions"].map(h => (
+                {["NO", "Plate Number", "Brand & Model", "Owner", "Logbook No", "VIN", "Year / Color", "Status", "Actions"].map(h => (
                   <TableHead key={h} className={cn(dashboardTableHeadClass, h === "Actions" ? "text-right" : "text-left")}>{h}</TableHead>
                 ))}
               </TableRow>
@@ -239,10 +317,14 @@ export default function VehiclesPage() {
                   <Loader2 className="size-6 animate-spin mx-auto text-primary" />
                   <p className="text-sm text-muted-foreground font-medium mt-2">Loading vehicles...</p>
                 </TableCell></TableRow>
-              ) : filtered.length > 0 ? filtered.map((row, idx) => (
+              ) : paginatedData.length > 0 ? paginatedData.map((row, idx) => (
                 <TableRow key={row.id} className={dashboardTableBodyRowClass}>
-                  <TableCell className={dashboardTableCellClass}><span className={dashboardTableIdClass}>{idx + 1}</span></TableCell>
-                  <TableCell className={dashboardTableCellClass}><span className="text-sm font-bold text-foreground flex items-center gap-1.5"><Car className="size-4 text-[#1565c0] shrink-0" />{row.plateNumber}</span></TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <span className={dashboardTableIdClass}>{(currentPage - 1) * pageSize + idx + 1}</span>
+                  </TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <span className="text-sm font-bold text-foreground">{row.plateNumber}</span>
+                  </TableCell>
                   <TableCell className={dashboardTableCellClass}>
                     <span className="text-sm text-zinc-800 dark:text-zinc-200 font-semibold">
                       {row.model?.brand?.name ? `${row.model.brand.name} ${row.model.name}` : "—"}
@@ -271,6 +353,39 @@ export default function VehiclesPage() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Bottom pagination row */}
+        {filtered.length > 0 && (
+          <div className="px-5 py-4 border-t border-zinc-100 dark:border-border flex items-center justify-between bg-white dark:bg-card shrink-0 select-none">
+            <div className="text-xs text-zinc-500 font-medium">
+              {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="h-8 w-8 rounded-full border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-0"
+              >
+                <span className="text-xs font-semibold">&lt;</span>
+              </Button>
+              <span className="text-xs text-zinc-600 dark:text-zinc-300 font-bold px-3 py-1 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+                {currentPage} of {totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={currentPage === totalPages || totalPages === 0}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="h-8 w-8 rounded-full border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-0"
+              >
+                <span className="text-xs font-semibold">&gt;</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -304,10 +419,38 @@ export default function VehiclesPage() {
             <div><label className={labelCls}>Plate Number *</label><input required type="text" placeholder="e.g. AB-1234" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Logbook Number (Buuga Aqoonsiga)</label><input type="text" placeholder="e.g. LG-987654" value={logbookNumber} onChange={(e) => setLogbookNumber(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Year</label><input type="number" placeholder="2024" value={year} onChange={(e) => setYear(Number(e.target.value))} className={inputCls} /></div>
-            <div><label className={labelCls}>Color</label><input type="text" placeholder="e.g. White" value={color} onChange={(e) => setColor(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Color</label>
+              <select value={colorId} onChange={(e) => setColorId(e.target.value === "" ? "" : Number(e.target.value))} className={selectCls}>
+                <option value="">Select color...</option>
+                {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
             <div><label className={labelCls}>Mileage (km)</label><input type="number" placeholder="0" value={mileage} onChange={(e) => setMileage(Number(e.target.value))} className={inputCls} /></div>
             <div><label className={labelCls}>VIN (Chassis No.)</label><input type="text" placeholder="Vehicle Identification Number" value={vin} onChange={(e) => setVin(e.target.value)} className={inputCls} /></div>
-            
+
+            <div className="col-span-2 space-y-3">
+              <label className={labelCls}>Registration Fee</label>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="useCustomFee" checked={useCustomFee} onChange={(e) => { setUseCustomFee(e.target.checked); if (e.target.checked) setRegistrationFeeId("") }} className="w-4 h-4 accent-[#1565c0]" />
+                  <label htmlFor="useCustomFee" className="text-sm font-normal text-zinc-700 dark:text-zinc-300">Enter custom amount</label>
+                </div>
+              </div>
+              {!useCustomFee ? (
+                <select value={registrationFeeId} onChange={(e) => setRegistrationFeeId(e.target.value === "" ? "" : Number(e.target.value))} className={selectCls}>
+                  <option value="">Select registration fee (optional)</option>
+                  {registrationFees.filter(f => f.isActive).map(f => (
+                    <option key={f.id} value={f.id}>{f.purpose} - ${Number(f.amount).toFixed(2)}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <DollarSign className="size-4 text-zinc-400" />
+                  <input type="number" step="0.01" min="0" placeholder="Enter custom fee amount" value={customFeeAmount} onChange={(e) => setCustomFeeAmount(e.target.value)} className={inputCls} />
+                </div>
+              )}
+            </div>
+
             <div className="col-span-2"><label className={labelCls}>Status</label>
               <select value={status} onChange={(e) => setStatus(e.target.value as Vehicle["status"])} className={selectCls}>
                 {STATUSES.map(s => <option key={s} value={s}>{formatStatusLabel(s)}</option>)}
@@ -354,10 +497,38 @@ export default function VehiclesPage() {
             <div><label className={labelCls}>Plate Number *</label><input required type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Logbook Number (Buuga Aqoonsiga)</label><input type="text" value={logbookNumber} onChange={(e) => setLogbookNumber(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Year</label><input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className={inputCls} /></div>
-            <div><label className={labelCls}>Color</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Color</label>
+              <select value={colorId} onChange={(e) => setColorId(e.target.value === "" ? "" : Number(e.target.value))} className={selectCls}>
+                <option value="">Select color...</option>
+                {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
             <div><label className={labelCls}>Mileage (km)</label><input type="number" value={mileage} onChange={(e) => setMileage(Number(e.target.value))} className={inputCls} /></div>
             <div><label className={labelCls}>VIN (Chassis No.)</label><input type="text" value={vin} onChange={(e) => setVin(e.target.value)} className={inputCls} /></div>
-            
+
+            <div className="col-span-2 space-y-3">
+              <label className={labelCls}>Registration Fee</label>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="useCustomFeeEdit" checked={useCustomFee} onChange={(e) => { setUseCustomFee(e.target.checked); if (e.target.checked) setRegistrationFeeId("") }} className="w-4 h-4 accent-[#1565c0]" />
+                  <label htmlFor="useCustomFeeEdit" className="text-sm font-normal text-zinc-700 dark:text-zinc-300">Enter custom amount</label>
+                </div>
+              </div>
+              {!useCustomFee ? (
+                <select value={registrationFeeId} onChange={(e) => setRegistrationFeeId(e.target.value === "" ? "" : Number(e.target.value))} className={selectCls}>
+                  <option value="">Select registration fee (optional)</option>
+                  {registrationFees.filter(f => f.isActive).map(f => (
+                    <option key={f.id} value={f.id}>{f.purpose} - ${Number(f.amount).toFixed(2)}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <DollarSign className="size-4 text-zinc-400" />
+                  <input type="number" step="0.01" min="0" placeholder="Enter custom fee amount" value={customFeeAmount} onChange={(e) => setCustomFeeAmount(e.target.value)} className={inputCls} />
+                </div>
+              )}
+            </div>
+
             <div className="col-span-2"><label className={labelCls}>Status</label>
               <select value={status} onChange={(e) => setStatus(e.target.value as Vehicle["status"])} className={selectCls}>
                 {STATUSES.map(s => <option key={s} value={s}>{formatStatusLabel(s)}</option>)}

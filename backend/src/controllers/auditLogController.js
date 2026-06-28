@@ -7,8 +7,8 @@ export const createAuditLog = async (req, res) => {
 
     const log = await prisma.auditLog.create({
       data: {
-        companyId: companyId ? Number(companyId) : undefined,
-        userId: userId ? Number(userId) : undefined,
+        companyId: companyId ? Number(companyId) : req.user?.companyId ? Number(req.user.companyId) : undefined,
+        userId: userId ? Number(userId) : req.user?.id ? Number(req.user.id) : undefined,
         action,
         entity,
         entityId: entityId ? Number(entityId) : undefined,

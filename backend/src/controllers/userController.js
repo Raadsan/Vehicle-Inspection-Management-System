@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { companyWhere } from "../lib/tenant.js";
 
 // POST /api/users
 export const createUser = async (req, res) => {
@@ -33,8 +34,20 @@ export const createUser = async (req, res) => {
 // GET /api/users
 export const getAllUsers = async (req, res) => {
   try {
+    const scope = companyWhere(req, req.query.companyId);
     const users = await prisma.user.findMany({
-      select: { id: true, username: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, company: { select: { id: true, name: true } } },
+      where: scope,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        role: true,
+        roleId: true,
+        isActive: true,
+        createdAt: true,
+        company: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(users);
@@ -48,7 +61,18 @@ export const getUserById = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: Number(req.params.id) },
-      select: { id: true, username: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, updatedAt: true, company: { select: { id: true, name: true } } },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        role: true,
+        roleId: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        company: { select: { id: true, name: true } },
+      },
     });
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
@@ -61,7 +85,13 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { email, fullName, role, isActive, password, roleId } = req.body;
-    const data = { email, fullName, role, isActive, roleId: roleId ? Number(roleId) : undefined };
+    const data = {
+      email,
+      fullName,
+      role,
+      isActive,
+      roleId: roleId === "" || roleId === null ? null : Number(roleId),
+    };
     if (password) data.password = await bcrypt.hash(password, 10);
     const user = await prisma.user.update({
       where: { id: Number(req.params.id) },
@@ -96,6 +126,7 @@ export const loginUser = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { username },
+      include: { company: { select: { id: true, name: true } } },
     });
 
     if (!user || !user.isActive) {
@@ -109,7 +140,7 @@ export const loginUser = async (req, res) => {
 
     const secret = process.env.JWT_SECRET || "supersecretkey";
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, companyId: user.companyId },
+      { id: user.id, username: user.username, role: user.role, companyId: user.companyId, roleId: user.roleId },
       secret,
       { expiresIn: "1d" }
     );
@@ -122,7 +153,9 @@ export const loginUser = async (req, res) => {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        roleId: user.roleId,
         companyId: user.companyId,
+        companyName: user.company?.name,
       },
     });
   } catch (err) {

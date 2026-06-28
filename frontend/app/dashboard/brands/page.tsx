@@ -1,16 +1,14 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, Loader2, TagIcon, Search } from "lucide-react"
+import { Plus, Edit, Trash2, Loader2, Search, TagIcon, MoreVertical } from "lucide-react"
 import toast from "react-hot-toast"
 import { vehicleBrandApi, VehicleBrand } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import {
   dashboardPageClass, dashboardPageStyle, pageHeaderTitleClass, pageHeaderSubtitleClass,
-  pageHeaderWrapperClass, dashboardCardClass, dashboardTableHeaderClass, dashboardTableHeadRowClass,
-  dashboardTableHeadClass, dashboardTableBodyRowClass, dashboardTableCellClass, dashboardTableIdClass,
+  pageHeaderWrapperClass, dashboardAddButtonClass,
 } from "@/lib/dashboard-ui"
 
 // ─── Simple Modal ───
@@ -40,6 +38,100 @@ const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rou
 const textareaCls = "w-full min-h-24 px-3 py-2 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground resize-y"
 const labelCls = "block text-sm font-semibold text-[#0a2744] dark:text-zinc-300 mb-1"
 
+// ─── Brand Menu (Kebab Dropdown) ───
+function BrandMenu({
+  brand,
+  onEdit,
+  onDelete,
+}: {
+  brand: VehicleBrand
+  onEdit: (b: VehicleBrand) => void
+  onDelete: (b: VehicleBrand) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-7 z-20 bg-white dark:bg-card border border-zinc-200 dark:border-border rounded-lg shadow-xl w-36 py-1 overflow-hidden">
+            <button
+              onClick={() => { setOpen(false); onEdit(brand) }}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 w-full text-left transition-colors font-medium"
+            >
+              <Edit className="size-3.5 text-blue-500" /> Edit Brand
+            </button>
+            <button
+              onClick={() => { setOpen(false); onDelete(brand) }}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 w-full text-left transition-colors font-bold"
+            >
+              <Trash2 className="size-3.5" /> Delete Brand
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Brand Card ───
+function BrandCard({
+  brand,
+  onEdit,
+  onDelete,
+}: {
+  brand: VehicleBrand
+  onEdit: (b: VehicleBrand) => void
+  onDelete: (b: VehicleBrand) => void
+}) {
+  return (
+    <div className="bg-white dark:bg-card border border-zinc-200 dark:border-border rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between h-[185px]">
+      <div className="p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#1565c0]/10 flex items-center justify-center shrink-0">
+              <TagIcon className="size-5 text-[#1565c0]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-zinc-900 dark:text-white text-sm truncate max-w-[120px]">{brand.name}</h3>
+              {brand.createdAt && (
+                <p className="text-[10px] text-zinc-400 mt-0.5">
+                  Created: {new Date(brand.createdAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          </div>
+          <BrandMenu brand={brand} onEdit={onEdit} onDelete={onDelete} />
+        </div>
+
+        {brand.description ? (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3 line-clamp-2">
+            {brand.description}
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-400/50 italic mt-3">No description provided</p>
+        )}
+      </div>
+
+      <div className="px-5 pb-5 pt-0">
+        <button
+          onClick={() => onEdit(brand)}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-zinc-200 dark:border-border rounded-lg text-xs text-zinc-600 dark:text-zinc-300 hover:bg-[#1565c0] hover:text-white hover:border-[#1565c0] font-bold transition-all"
+        >
+          <Edit className="size-3.5" />
+          Edit Brand
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function BrandsPage() {
   const [brands, setBrands] = useState<VehicleBrand[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +144,10 @@ export default function BrandsPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [saving, setSaving] = useState(false)
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null)
@@ -129,111 +225,72 @@ export default function BrandsPage() {
     return b.name.toLowerCase().includes(s) || b.description?.toLowerCase().includes(s)
   })
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filtered.length / pageSize)
+  const paginatedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
+
   return (
     <div className={cn(dashboardPageClass, "space-y-5")} style={dashboardPageStyle}>
-      {/* Header */}
-      <div className={pageHeaderWrapperClass}>
-        <h1 className={pageHeaderTitleClass}>Vehicle Brands</h1>
-        <p className={pageHeaderSubtitleClass}>Manage car manufacturers and makes</p>
-      </div>
-
-      {/* Main card */}
-      <div className={dashboardCardClass}>
-        <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 dark:border-border">
-          <span className="text-sm font-semibold text-zinc-500">{filtered.length} of {brands.length} brands</span>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input 
-                type="text" 
-                placeholder="Search brands..." 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-56 pl-9 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded-md outline-none focus:border-[#1565c0] text-sm font-normal text-foreground" 
-              />
-            </div>
-            <Button 
-              onClick={openCreate} 
-              className="h-10 bg-[#1565c0] hover:bg-[#0a2744] text-white font-semibold px-5 rounded-md flex items-center gap-2 shadow-sm text-sm"
-            >
-              <Plus className="size-4.5" />
-              <span>Add Brand</span>
-            </Button>
+      {/* Header with Search and Add Brand Button */}
+      <div className={cn(pageHeaderWrapperClass, "flex flex-wrap items-end justify-between gap-4 mb-6")}>
+        <div>
+          <h1 className={pageHeaderTitleClass}>Vehicle Brands</h1>
+          <p className={pageHeaderSubtitleClass}>Manage car manufacturers and makes</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input 
+              type="text" 
+              placeholder="Search brands..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-52 pl-8 pr-3 bg-white dark:bg-muted/10 border border-zinc-200 dark:border-border rounded-lg outline-none text-xs text-foreground font-normal focus:border-[#1565c0] transition-colors" 
+            />
           </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <Table className="w-full">
-            <TableHeader className={dashboardTableHeaderClass}>
-              <TableRow className={dashboardTableHeadRowClass}>
-                {["#", "Brand Name", "Description", "Created At", "Actions"].map(h => (
-                  <TableHead key={h} className={cn(dashboardTableHeadClass, h === "Actions" ? "text-right" : "text-left")}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody className="bg-card">
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-14 text-center">
-                    <Loader2 className="size-6 animate-spin mx-auto text-primary" />
-                    <p className="text-sm text-muted-foreground font-medium mt-2">Loading brands...</p>
-                  </TableCell>
-                </TableRow>
-              ) : filtered.length > 0 ? (
-                filtered.map((brand, idx) => (
-                  <TableRow key={brand.id} className={dashboardTableBodyRowClass}>
-                    <TableCell className={dashboardTableCellClass}>
-                      <span className={dashboardTableIdClass}>{idx + 1}</span>
-                    </TableCell>
-                    <TableCell className={dashboardTableCellClass}>
-                      <span className="text-sm font-bold text-foreground flex items-center gap-2">
-                        <TagIcon className="size-4 text-[#1565c0] shrink-0" />
-                        {brand.name}
-                      </span>
-                    </TableCell>
-                    <TableCell className={dashboardTableCellClass}>
-                      <span className="text-sm text-zinc-600 dark:text-zinc-300 font-normal line-clamp-1">
-                        {brand.description || "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className={dashboardTableCellClass}>
-                      <span className="text-sm text-zinc-500 font-normal">
-                        {brand.createdAt ? new Date(brand.createdAt).toLocaleDateString() : "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className={cn(dashboardTableCellClass, "text-right")}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => openEdit(brand)} 
-                          className="h-8 w-8 text-blue-600 hover:bg-blue-50 dark:hover:bg-white/10 rounded"
-                          title="Edit Brand"
-                        >
-                          <Edit className="size-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => setDeleteConfirm({ id: brand.id, name: brand.name })} 
-                          className="h-8 w-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-white/10 rounded"
-                          title="Delete Brand"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-12 text-center text-zinc-400 text-sm">No brands found</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <button
+            onClick={openCreate}
+            className={dashboardAddButtonClass}
+          >
+            <Plus className="size-4" />
+            Add Brand
+          </button>
         </div>
       </div>
+
+      {/* Top filters row for page size */}
+      <div className="flex items-center gap-1.5 mb-4">
+        
+      </div>
+
+      {/* Brand Boxes/Cards Grid directly on background */}
+      {loading ? (
+        <div className="py-20 text-center bg-white dark:bg-card border border-zinc-200 dark:border-border rounded-lg shadow-xs">
+          <Loader2 className="size-8 animate-spin mx-auto text-[#1565c0]" />
+          <p className="text-sm text-muted-foreground font-medium mt-2">Loading brands...</p>
+        </div>
+      ) : paginatedData.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {paginatedData.map((brand) => (
+            <BrandCard 
+              key={brand.id}
+              brand={brand}
+              onEdit={openEdit}
+              onDelete={(b) => setDeleteConfirm({ id: b.id, name: b.name })}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="py-16 text-center text-zinc-400 text-sm bg-white dark:bg-card border border-zinc-200 dark:border-border rounded-lg shadow-xs">No brands found</div>
+      )}
+
+      {/* Pagination controls at the bottom */}
+      
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
@@ -299,7 +356,7 @@ export default function BrandsPage() {
                 type="button" 
                 variant="ghost" 
                 onClick={() => setDeleteConfirm(null)} 
-                className="h-10 px-4 rounded-md border border-zinc-200 text-sm font-normal text-zinc-600"
+                className="h-10 px-4 rounded-md border border-zinc-200 text-sm font-normal text-[#0a2744]"
               >
                 Cancel
               </Button>

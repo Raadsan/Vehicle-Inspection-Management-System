@@ -51,6 +51,7 @@ export function NavUser() {
   const handleLogout = () => {
     localStorage.removeItem("token")
     localStorage.removeItem("user")
+    localStorage.removeItem("userPagePermissions")
     window.location.assign("/login")
   }
 

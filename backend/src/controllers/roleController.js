@@ -1,5 +1,6 @@
 // src/controllers/roleController.js
 import { prisma } from "../lib/prisma.js";
+import { writeAuditLog } from "../lib/auditLog.js";
 
 // POST /api/roles
 export const createRole = async (req, res) => {
@@ -16,6 +17,15 @@ export const createRole = async (req, res) => {
         description,
       },
       include: { company: { select: { id: true, name: true } } },
+    });
+    await writeAuditLog({
+      companyId: role.companyId,
+      userId: req.user?.id,
+      action: "CREATE",
+      entity: "Role",
+      entityId: role.id,
+      details: `Created role "${role.name}"`,
+      ipAddress: req.ip,
     });
     res.status(201).json(role);
   } catch (err) {
@@ -78,6 +88,15 @@ export const updateRole = async (req, res) => {
       data: { name, description, isActive },
       include: { company: { select: { id: true, name: true } } },
     });
+    await writeAuditLog({
+      companyId: role.companyId,
+      userId: req.user?.id,
+      action: "UPDATE",
+      entity: "Role",
+      entityId: role.id,
+      details: `Updated role "${role.name}"`,
+      ipAddress: req.ip,
+    });
     res.json(role);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Role not found" });
@@ -90,7 +109,19 @@ export const updateRole = async (req, res) => {
 // DELETE /api/roles/:id
 export const deleteRole = async (req, res) => {
   try {
+    const existing = await prisma.role.findUnique({ where: { id: Number(req.params.id) } });
     await prisma.role.delete({ where: { id: Number(req.params.id) } });
+    if (existing) {
+      await writeAuditLog({
+        companyId: existing.companyId,
+        userId: req.user?.id,
+        action: "DELETE",
+        entity: "Role",
+        entityId: existing.id,
+        details: `Deleted role "${existing.name}"`,
+        ipAddress: req.ip,
+      });
+    }
     res.status(204).send();
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "Role not found" });

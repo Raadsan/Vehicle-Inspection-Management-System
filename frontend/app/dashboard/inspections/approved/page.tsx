@@ -1,12 +1,12 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Search, Eye, CheckCircle, XCircle, Loader2, ClipboardCheck } from "lucide-react"
+import { Search, Eye, Loader2, BadgeCheck } from "lucide-react"
 import toast from "react-hot-toast"
 import { inspectionApi, Inspection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import {
   dashboardPageClass, dashboardPageStyle, pageHeaderTitleClass, pageHeaderSubtitleClass,
@@ -15,10 +15,7 @@ import {
   dashboardStatusBadgeClass, formatStatusLabel,
 } from "@/lib/dashboard-ui"
 
-const labelCls = "block text-sm font-semibold text-[#0a2744] dark:text-zinc-300 mb-1"
-const textareaCls = "w-full min-h-20 px-3 py-2 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground resize-y"
-
-export default function AwaitingApprovalPage() {
+export default function ApprovedInspectionsPage() {
   const [inspections, setInspections] = useState<Inspection[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -26,16 +23,12 @@ export default function AwaitingApprovalPage() {
   const [pageSize, setPageSize] = useState(10)
   const [isViewOpen, setIsViewOpen] = useState(false)
   const [selected, setSelected] = useState<Inspection | null>(null)
-  const [isApproveOpen, setIsApproveOpen] = useState(false)
-  const [isRejectOpen, setIsRejectOpen] = useState(false)
-  const [actionNotes, setActionNotes] = useState("")
-  const [submitting, setSubmitting] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
     try {
       const all = await inspectionApi.getAll()
-      setInspections(all.filter((i: Inspection) => i.status === "AWAITING_APPROVAL"))
+      setInspections(all.filter((i: Inspection) => i.status === "APPROVED"))
     } catch (err: any) {
       toast.error("Failed: " + (err.response?.data?.error || err.message))
     } finally {
@@ -45,30 +38,6 @@ export default function AwaitingApprovalPage() {
 
   useEffect(() => { loadData() }, [])
   useEffect(() => { setCurrentPage(1) }, [search])
-
-  const handleApprove = async () => {
-    if (!selected) return
-    setSubmitting(true)
-    try {
-      await inspectionApi.approve(selected.id, { notes: actionNotes || undefined })
-      toast.success("Inspection approved ✓")
-      setIsApproveOpen(false); setActionNotes(""); loadData()
-    } catch (err: any) {
-      toast.error("Failed: " + (err.response?.data?.error || err.message))
-    } finally { setSubmitting(false) }
-  }
-
-  const handleReject = async () => {
-    if (!selected) return
-    setSubmitting(true)
-    try {
-      await inspectionApi.reject(selected.id, { notes: actionNotes || undefined })
-      toast.success("Inspection rejected")
-      setIsRejectOpen(false); setActionNotes(""); loadData()
-    } catch (err: any) {
-      toast.error("Failed: " + (err.response?.data?.error || err.message))
-    } finally { setSubmitting(false) }
-  }
 
   const filtered = inspections.filter(i => {
     const s = search.toLowerCase()
@@ -84,12 +53,12 @@ export default function AwaitingApprovalPage() {
     <div className={cn(dashboardPageClass, "space-y-5")} style={dashboardPageStyle}>
       <div className={pageHeaderWrapperClass}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center">
-            <ClipboardCheck className="size-5 text-amber-600" />
+          <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/20 flex items-center justify-center">
+            <BadgeCheck className="size-5 text-emerald-600" />
           </div>
           <div>
-            <h1 className={pageHeaderTitleClass}>Awaiting Approval</h1>
-            <p className={pageHeaderSubtitleClass}>Inspections submitted and pending your review</p>
+            <h1 className={pageHeaderTitleClass}>Approved Inspections</h1>
+            <p className={pageHeaderSubtitleClass}>All inspections that have been reviewed and approved</p>
           </div>
         </div>
       </div>
@@ -115,14 +84,14 @@ export default function AwaitingApprovalPage() {
           <Table className="w-full">
             <TableHeader className={dashboardTableHeaderClass}>
               <TableRow className={dashboardTableHeadRowClass}>
-                {["NO", "Vehicle", "Company", "Scheduled", "Result", "Actions"].map(h => (
+                {["NO", "Vehicle", "Company", "Scheduled", "Completed", "Result", "Actions"].map(h => (
                   <TableHead key={h} className={cn(dashboardTableHeadClass, h === "Actions" ? "text-right" : "text-left")}>{h}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody className="bg-card">
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="py-14 text-center">
+                <TableRow><TableCell colSpan={7} className="py-14 text-center">
                   <Loader2 className="size-6 animate-spin mx-auto text-primary" />
                   <p className="text-sm text-muted-foreground mt-2">Loading...</p>
                 </TableCell></TableRow>
@@ -146,38 +115,31 @@ export default function AwaitingApprovalPage() {
                     <span className="text-sm text-zinc-500">{row.scheduledAt ? new Date(row.scheduledAt).toLocaleDateString() : "—"}</span>
                   </TableCell>
                   <TableCell className={dashboardTableCellClass}>
+                    <span className="text-sm text-zinc-500">{row.completedAt ? new Date(row.completedAt).toLocaleDateString() : "—"}</span>
+                  </TableCell>
+                  <TableCell className={dashboardTableCellClass}>
                     {row.overallResult ? (
                       <span className={cn(dashboardStatusBadgeClass,
                         row.overallResult === "PASS" ? "bg-emerald-600 text-white" :
                         row.overallResult === "FAIL" ? "bg-rose-600 text-white" : "bg-amber-500 text-white"
                       )}>{row.overallResult}</span>
-                    ) : <span className="text-zinc-400 text-sm">—</span>}
+                    ) : (
+                      <span className={cn(dashboardStatusBadgeClass, "bg-emerald-600 text-white")}>APPROVED</span>
+                    )}
                   </TableCell>
                   <TableCell className={cn(dashboardTableCellClass, "text-right")}>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setSelected(row); setIsViewOpen(true) }}
-                        className="h-8 w-8 text-primary hover:bg-primary/5 rounded" title="View">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon"
-                        onClick={() => { setSelected(row); setActionNotes(""); setIsApproveOpen(true) }}
-                        className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-white/10 rounded" title="Approve">
-                        <CheckCircle className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon"
-                        onClick={() => { setSelected(row); setActionNotes(""); setIsRejectOpen(true) }}
-                        className="h-8 w-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-white/10 rounded" title="Reject">
-                        <XCircle className="size-4" />
-                      </Button>
-                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => { setSelected(row); setIsViewOpen(true) }}
+                      className="h-8 w-8 text-primary hover:bg-primary/5 rounded" title="View">
+                      <Eye className="size-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-16 text-center">
-                    <ClipboardCheck className="size-10 mx-auto text-zinc-200 dark:text-zinc-700 mb-3" />
-                    <p className="text-sm text-zinc-400 font-medium">No inspections awaiting approval</p>
-                    <p className="text-xs text-zinc-400 mt-1">All inspections are reviewed ✓</p>
+                  <TableCell colSpan={7} className="py-16 text-center">
+                    <BadgeCheck className="size-10 mx-auto text-zinc-200 dark:text-zinc-700 mb-3" />
+                    <p className="text-sm text-zinc-400 font-medium">No approved inspections yet</p>
+                    <p className="text-xs text-zinc-400 mt-1">Approved inspections will appear here</p>
                   </TableCell>
                 </TableRow>
               )}
@@ -213,7 +175,10 @@ export default function AwaitingApprovalPage() {
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
         <DialogContent className="max-w-lg bg-white dark:bg-card border border-border rounded-lg p-8">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-lg font-bold text-[#0a2744] dark:text-white">Inspection #{selected?.id}</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-[#0a2744] dark:text-white">
+              Inspection #{selected?.id}
+              <span className={cn("ml-3 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700")}>APPROVED</span>
+            </DialogTitle>
           </DialogHeader>
           {selected && (
             <div className="space-y-3">
@@ -221,7 +186,8 @@ export default function AwaitingApprovalPage() {
                 ["Vehicle", selected.vehicle?.plateNumber || `#${selected.vehicleId}`],
                 ["Model", selected.vehicle?.model ? `${(selected.vehicle.model as any).brand?.name || ""} ${selected.vehicle.model.name}` : "—"],
                 ["Company", selected.company?.name || "—"],
-                ["Scheduled At", selected.scheduledAt ? new Date(selected.scheduledAt).toLocaleString() : "—"],
+                ["Scheduled", selected.scheduledAt ? new Date(selected.scheduledAt).toLocaleString() : "—"],
+                ["Completed", selected.completedAt ? new Date(selected.completedAt).toLocaleString() : "—"],
                 ["Result", selected.overallResult || "—"],
                 ["Notes", selected.notes || "—"],
               ].map(([l, v]) => (
@@ -230,70 +196,12 @@ export default function AwaitingApprovalPage() {
                   <span className="text-sm text-zinc-800 dark:text-zinc-200 font-semibold text-right">{v}</span>
                 </div>
               ))}
-              <div className="pt-3 flex items-center justify-end gap-2">
-                <Button onClick={() => { setIsViewOpen(false); setActionNotes(""); setIsRejectOpen(true) }}
-                  className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-md flex items-center gap-1.5">
-                  <XCircle className="size-4" /> Reject
-                </Button>
-                <Button onClick={() => { setIsViewOpen(false); setActionNotes(""); setIsApproveOpen(true) }}
-                  className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-md flex items-center gap-1.5">
-                  <CheckCircle className="size-4" /> Approve
-                </Button>
+              <div className="pt-2 flex justify-end">
+                <Button onClick={() => setIsViewOpen(false)}
+                  className="h-10 px-5 bg-[#1565c0] text-white font-semibold rounded-md text-sm">Close</Button>
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Approve Modal */}
-      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-        <DialogContent className="max-w-md bg-white dark:bg-card border border-border rounded-lg p-8">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-lg font-bold text-emerald-600">Approve Inspection #{selected?.id}?</DialogTitle>
-            <DialogDescription className="text-sm text-zinc-500">
-              Vehicle: <strong>{selected?.vehicle?.plateNumber}</strong> — {selected?.company?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mb-4">
-            <label className={labelCls}>Notes (optional)</label>
-            <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)}
-              placeholder="Add any approval notes..." className={textareaCls} />
-          </div>
-          <DialogFooter className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setIsApproveOpen(false)}
-              className="h-10 px-4 border border-zinc-200 rounded-md text-sm">Cancel</Button>
-            <Button onClick={handleApprove} disabled={submitting}
-              className="h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md text-sm flex items-center gap-2">
-              {submitting && <Loader2 className="size-4 animate-spin" />}
-              <CheckCircle className="size-4" /> Approve
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Modal */}
-      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
-        <DialogContent className="max-w-md bg-white dark:bg-card border border-border rounded-lg p-8">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-lg font-bold text-rose-600">Reject Inspection #{selected?.id}?</DialogTitle>
-            <DialogDescription className="text-sm text-zinc-500">
-              Vehicle: <strong>{selected?.vehicle?.plateNumber}</strong> — {selected?.company?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mb-4">
-            <label className={labelCls}>Reason for rejection</label>
-            <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)}
-              placeholder="State the reason for rejection..." className={textareaCls} />
-          </div>
-          <DialogFooter className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setIsRejectOpen(false)}
-              className="h-10 px-4 border border-zinc-200 rounded-md text-sm">Cancel</Button>
-            <Button onClick={handleReject} disabled={submitting}
-              className="h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md text-sm flex items-center gap-2">
-              {submitting && <Loader2 className="size-4 animate-spin" />}
-              <XCircle className="size-4" /> Reject
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

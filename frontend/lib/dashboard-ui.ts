@@ -15,6 +15,9 @@ export const pageHeaderSubtitleClass =
 
 export const pageHeaderWrapperClass = "mb-6 px-1";
 
+export const dashboardAddButtonClass =
+  "flex items-center gap-2 h-10 px-4 bg-[#1565c0] hover:bg-[#0a2744] text-white text-sm font-bold rounded-lg shadow-sm transition-colors";
+
 export const dashboardCardClass =
   "bg-white dark:bg-card rounded-lg border border-zinc-200 dark:border-border shadow-xs overflow-hidden";
 

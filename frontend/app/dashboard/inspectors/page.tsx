@@ -12,7 +12,7 @@ import {
   dashboardPageClass, dashboardPageStyle, pageHeaderTitleClass, pageHeaderSubtitleClass,
   pageHeaderWrapperClass, dashboardCardClass, dashboardTableHeaderClass, dashboardTableHeadRowClass,
   dashboardTableHeadClass, dashboardTableBodyRowClass, dashboardTableCellClass, dashboardTableIdClass,
-  dashboardStatusBadgeClass,
+  dashboardStatusBadgeClass, dashboardAddButtonClass,
 } from "@/lib/dashboard-ui"
 
 const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal"
@@ -92,8 +92,8 @@ export default function InspectorsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-10 w-56 pl-9 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded-md outline-none focus:border-[#1565c0] text-sm font-normal text-foreground" />
             </div>
-            <Button onClick={openAdd} className="h-10 bg-[#1565c0] hover:bg-[#0a2744] text-white font-semibold px-5 rounded-md flex items-center gap-2 shadow-sm text-sm">
-              <Plus className="size-4.5" /><span>Add Inspector</span>
+            <Button onClick={openAdd} className={dashboardAddButtonClass}>
+              <Plus className="size-4" /><span>Add Inspector</span>
             </Button>
           </div>
         </div>

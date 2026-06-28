@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Search, Loader2, Eye } from "lucide-react"
+import { Search, Loader2, Eye, RefreshCw } from "lucide-react"
 import toast from "react-hot-toast"
 import { auditLogApi, AuditLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -69,7 +69,17 @@ export default function AuditLogPage() {
       <div className={dashboardCardClass}>
         <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 dark:border-border">
           <span className="text-sm font-semibold text-zinc-500">{filtered.length} entries</span>
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={loadData}
+              disabled={loading}
+              className="h-10 px-3 text-sm font-normal"
+            >
+              <RefreshCw className={cn("size-4 mr-1.5", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <div className="relative">
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
@@ -78,6 +88,7 @@ export default function AuditLogPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-10 w-56 pl-9 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded-md outline-none focus:border-[#1565c0] text-sm font-normal text-foreground"
             />
+            </div>
           </div>
         </div>
 
