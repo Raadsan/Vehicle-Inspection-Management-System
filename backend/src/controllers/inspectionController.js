@@ -4,12 +4,13 @@ import { prisma } from "../lib/prisma.js";
 export const createInspection = async (req, res) => {
   try {
     const { companyId, vehicleId, inspectorId, scheduledAt, startedAt, completedAt, status, notes, overallResult } = req.body;
-    if (!companyId || !vehicleId || !inspectorId) {
-      return res.status(400).json({ error: "companyId, vehicleId, and inspectorId are required" });
+    const targetCompanyId = companyId || req.user?.companyId || 1;
+    if (!vehicleId || !inspectorId) {
+      return res.status(400).json({ error: "vehicleId and inspectorId are required" });
     }
     const inspection = await prisma.inspection.create({
       data: {
-        companyId: Number(companyId),
+        companyId: Number(targetCompanyId),
         vehicleId: Number(vehicleId),
         inspectorId: Number(inspectorId),
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
@@ -22,6 +23,7 @@ export const createInspection = async (req, res) => {
       include: {
         vehicle: true,
         inspector: true,
+        company: { select: { id: true, name: true } },
       }
     });
     res.status(201).json(inspection);
@@ -31,16 +33,33 @@ export const createInspection = async (req, res) => {
   }
 };
 
-// Get all inspections (optional filter by company)
+// Get all inspections — OWNER role can only see their own company's inspections
 export const getInspections = async (req, res) => {
   try {
-    const { companyId } = req.query;
+    const { companyId, status } = req.query;
+    const userRole = req.user?.role;
+    const userCompanyId = req.user?.companyId;
+
+    // Build the where filter
+    let where = {};
+
+    // OWNER role: always filter to their company only
+    if (userRole === "OWNER") {
+      where.companyId = userCompanyId;
+    } else if (companyId) {
+      where.companyId = Number(companyId);
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
     const inspections = await prisma.inspection.findMany({
-      where: companyId ? { companyId: Number(companyId) } : undefined,
+      where,
       include: {
-        company: true,
-        vehicle: true,
-        inspector: true,
+        company: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, plateNumber: true, color: true, year: true, model: { include: { brand: true } } } },
+        inspector: { select: { id: true, fullName: true, phone: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -59,8 +78,9 @@ export const getInspectionById = async (req, res) => {
       where: { id: Number(id) },
       include: {
         company: true,
-        vehicle: true,
+        vehicle: { include: { model: { include: { brand: true } } } },
         inspector: true,
+        inspectionItems: { include: { inspectionResults: true } },
       },
     });
     if (!inspection) return res.status(404).json({ error: "Inspection not found" });
@@ -93,6 +113,7 @@ export const updateInspection = async (req, res) => {
       include: {
         vehicle: true,
         inspector: true,
+        company: { select: { id: true, name: true } },
       }
     });
     res.json(inspection);
@@ -102,7 +123,7 @@ export const updateInspection = async (req, res) => {
   }
 };
 
-// Delete inspection
+// DELETE inspection
 export const deleteInspection = async (req, res) => {
   try {
     const { id } = req.params;
@@ -111,5 +132,67 @@ export const deleteInspection = async (req, res) => {
   } catch (error) {
     console.error("Delete Inspection error:", error);
     res.status(500).json({ error: "Failed to delete inspection" });
+  }
+};
+
+// POST /api/inspections/:id/approve — Admin approves an inspection
+export const approveInspection = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const existing = await prisma.inspection.findUnique({ where: { id: Number(id) } });
+    if (!existing) return res.status(404).json({ error: "Inspection not found" });
+    if (existing.status !== "AWAITING_APPROVAL") {
+      return res.status(400).json({ error: `Cannot approve an inspection with status '${existing.status}'. It must be in AWAITING_APPROVAL state.` });
+    }
+
+    const inspection = await prisma.inspection.update({
+      where: { id: Number(id) },
+      data: {
+        status: "APPROVED",
+        notes: notes || existing.notes,
+      },
+      include: {
+        vehicle: true,
+        inspector: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+    res.json(inspection);
+  } catch (error) {
+    console.error("Approve Inspection error:", error);
+    res.status(500).json({ error: "Failed to approve inspection" });
+  }
+};
+
+// POST /api/inspections/:id/reject — Admin rejects an inspection
+export const rejectInspection = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const existing = await prisma.inspection.findUnique({ where: { id: Number(id) } });
+    if (!existing) return res.status(404).json({ error: "Inspection not found" });
+    if (existing.status !== "AWAITING_APPROVAL") {
+      return res.status(400).json({ error: `Cannot reject an inspection with status '${existing.status}'. It must be in AWAITING_APPROVAL state.` });
+    }
+
+    const inspection = await prisma.inspection.update({
+      where: { id: Number(id) },
+      data: {
+        status: "REJECTED",
+        notes: notes || existing.notes,
+      },
+      include: {
+        vehicle: true,
+        inspector: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+    res.json(inspection);
+  } catch (error) {
+    console.error("Reject Inspection error:", error);
+    res.status(500).json({ error: "Failed to reject inspection" });
   }
 };

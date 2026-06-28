@@ -5,6 +5,8 @@ import {
   getInspectionById,
   updateInspection,
   deleteInspection,
+  approveInspection,
+  rejectInspection,
 } from "../controllers/inspectionController.js";
 import { authenticateJWT } from "../middleware/auth.js";
 
@@ -17,5 +19,9 @@ router.get("/", getInspections);
 router.get("/:id", getInspectionById);
 router.put("/:id", updateInspection);
 router.delete("/:id", deleteInspection);
+
+// Approval workflow endpoints
+router.post("/:id/approve", approveInspection);
+router.post("/:id/reject", rejectInspection);
 
 export default router;

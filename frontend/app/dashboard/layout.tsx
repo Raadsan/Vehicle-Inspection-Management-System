@@ -31,12 +31,15 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/inspections/create")) return "Schedule Inspection"
   if (pathname.startsWith("/dashboard/inspections/items")) return "Inspection Items"
   if (pathname.startsWith("/dashboard/inspections/results")) return "Inspection Results"
+  if (pathname.startsWith("/dashboard/inspections/approval")) return "Awaiting Approval"
   if (pathname.startsWith("/dashboard/inspections")) return "Inspections"
   if (pathname.startsWith("/dashboard/vehicles/create")) return "Add Vehicle"
-  if (pathname.startsWith("/dashboard/vehicles/brands")) return "Brands & Models"
   if (pathname.startsWith("/dashboard/vehicles")) return "Vehicles"
+  if (pathname.startsWith("/dashboard/brands")) return "Brands"
+  if (pathname.startsWith("/dashboard/models")) return "Models"
   if (pathname.startsWith("/dashboard/inspectors")) return "Inspectors"
   if (pathname.startsWith("/dashboard/owners")) return "Vehicle Owners"
+  if (pathname.startsWith("/dashboard/companies")) return "Companies"
   if (pathname.startsWith("/dashboard/payments/customers")) return "Customer Payments"
   if (pathname.startsWith("/dashboard/payments/inspectors")) return "Inspector Payments"
   if (pathname.startsWith("/dashboard/payments/invoices")) return "Invoices"
@@ -49,7 +52,6 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/configuration/audit-log")) return "Audit Log"
   if (pathname.startsWith("/dashboard/configuration/roles")) return "Roles"
   if (pathname.startsWith("/dashboard/configuration")) return "Configuration"
-  if (pathname.startsWith("/dashboard/company")) return "Company"
   if (pathname.startsWith("/dashboard/settings")) return "Settings"
   if (pathname.startsWith("/dashboard/help")) return "Help"
   return "Dashboard"
@@ -102,14 +104,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Sidebar toggle + page title */}
             <div className="flex items-center gap-3 shrink-0">
               <SidebarTrigger className="size-9 rounded-lg border border-border/60 bg-white dark:bg-slate-900 text-muted-foreground shadow-xs hover:text-primary hover:border-primary/30 transition-colors" />
-              <div className="hidden sm:flex flex-col leading-tight">
-                <h1 className="text-sm font-normal uppercase tracking-tight text-foreground">
-                  {pageTitle}
-                </h1>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                  Inspection Cars Management
-                </p>
-              </div>
             </div>
 
             {/* Center search (desktop) */}

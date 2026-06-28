@@ -5,12 +5,13 @@ import { prisma } from "../lib/prisma.js";
 export const createRole = async (req, res) => {
   try {
     const { companyId, name, description } = req.body;
-    if (!companyId || !name) {
-      return res.status(400).json({ error: "companyId and name are required" });
+    const targetCompanyId = companyId || req.user?.companyId || 1;
+    if (!name) {
+      return res.status(400).json({ error: "name is required" });
     }
     const role = await prisma.role.create({
       data: {
-        companyId: Number(companyId),
+        companyId: Number(targetCompanyId),
         name,
         description,
       },

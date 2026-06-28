@@ -4,9 +4,10 @@ import { prisma } from "../lib/prisma.js";
 export const createOwner = async (req, res) => {
   try {
     const { companyId, fullName, phone, email, address, idNumber } = req.body;
-    if (!companyId || !fullName) return res.status(400).json({ error: "companyId and fullName are required" });
+    const targetCompanyId = companyId || req.user?.companyId || 1;
+    if (!fullName) return res.status(400).json({ error: "fullName is required" });
     const owner = await prisma.owner.create({
-      data: { companyId: Number(companyId), fullName, phone, email, address, idNumber },
+      data: { companyId: Number(targetCompanyId), fullName, phone, email, address, idNumber },
       include: { company: { select: { id: true, name: true } } },
     });
     res.status(201).json(owner);

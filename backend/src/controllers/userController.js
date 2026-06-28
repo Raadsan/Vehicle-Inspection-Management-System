@@ -6,13 +6,14 @@ import jwt from "jsonwebtoken";
 export const createUser = async (req, res) => {
   try {
     const { companyId, username, password, email, fullName, role, roleId } = req.body;
-    if (!companyId || !username || !password) {
-      return res.status(400).json({ error: "companyId, username, and password are required" });
+    const targetCompanyId = companyId || req.user?.companyId || 1;
+    if (!username || !password) {
+      return res.status(400).json({ error: "username and password are required" });
     }
     const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
-        companyId: Number(companyId),
+        companyId: Number(targetCompanyId),
         username,
         password: hashed,
         email,

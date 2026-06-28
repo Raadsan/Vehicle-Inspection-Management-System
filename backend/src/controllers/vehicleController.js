@@ -3,12 +3,23 @@ import { prisma } from "../lib/prisma.js";
 // POST /api/vehicles
 export const createVehicle = async (req, res) => {
   try {
-    const { companyId, modelId, plateNumber, color, year, vin, mileage, status } = req.body;
-    if (!companyId || !modelId || !plateNumber) {
-      return res.status(400).json({ error: "companyId, modelId, and plateNumber are required" });
+    const { companyId, modelId, plateNumber, color, year, vin, mileage, status, logbookNumber } = req.body;
+    const targetCompanyId = companyId || req.user?.companyId || 1;
+    if (!modelId || !plateNumber) {
+      return res.status(400).json({ error: "modelId and plateNumber are required" });
     }
     const vehicle = await prisma.vehicle.create({
-      data: { companyId: Number(companyId), modelId: Number(modelId), plateNumber, color, year: year ? Number(year) : null, vin, mileage: mileage ? Number(mileage) : null, status },
+      data: { 
+        companyId: Number(targetCompanyId), 
+        modelId: Number(modelId), 
+        plateNumber, 
+        color, 
+        year: year ? Number(year) : null, 
+        vin, 
+        mileage: mileage ? Number(mileage) : null, 
+        status, 
+        logbookNumber 
+      },
       include: { model: { include: { brand: true } }, company: { select: { id: true, name: true } } },
     });
     res.status(201).json(vehicle);
@@ -65,11 +76,11 @@ export const getVehicleById = async (req, res) => {
 // PUT /api/vehicles/:id
 export const updateVehicle = async (req, res) => {
   try {
-    const { plateNumber, color, year, vin, mileage, status, modelId } = req.body;
+    const { plateNumber, color, year, vin, mileage, status, modelId, logbookNumber } = req.body;
     const vehicle = await prisma.vehicle.update({
       where: { id: Number(req.params.id) },
       data: {
-        plateNumber, color, vin, status,
+        plateNumber, color, vin, status, logbookNumber,
         year: year ? Number(year) : undefined,
         mileage: mileage ? Number(mileage) : undefined,
         modelId: modelId ? Number(modelId) : undefined,

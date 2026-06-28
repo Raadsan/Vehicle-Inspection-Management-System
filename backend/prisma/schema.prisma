@@ -126,24 +126,27 @@ model AuditLog {
 // 3. VEHICLE BRANDS
 
 model VehicleBrand {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  description String?        @db.Text
+  createdAt   DateTime       @default(now())
 
-  models    VehicleModel[]
+  models      VehicleModel[]
 }
 
 // 4. VEHICLE MODELS
  
 model VehicleModel {
-  id        Int          @id @default(autoincrement())
-  brandId   Int
-  name      String
-  year      Int?
-  createdAt DateTime     @default(now())
+  id          Int          @id @default(autoincrement())
+  brandId     Int
+  name        String
+  year        Int?
+  description String?      @db.Text
+  createdBy   String?
+  createdAt   DateTime     @default(now())
 
-  brand     VehicleBrand @relation(fields: [brandId], references: [id])
-  vehicles  Vehicle[]
+  brand       VehicleBrand @relation(fields: [brandId], references: [id])
+  vehicles    Vehicle[]
 
   @@unique([brandId, name])
 }
@@ -171,17 +174,18 @@ model Owner {
 // 6. VEHICLES
  
 model Vehicle {
-  id           Int          @id @default(autoincrement())
-  companyId    Int
-  modelId      Int
-  plateNumber  String       @unique
-  color        String?
-  year         Int?
-  vin          String?      @unique   // Chassis number
-  mileage      Int?
-  status       VehicleStatus @default(ACTIVE)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id            Int          @id @default(autoincrement())
+  companyId     Int
+  modelId       Int
+  plateNumber   String       @unique
+  color         String?
+  year          Int?
+  vin           String?      @unique   // Chassis number
+  mileage       Int?
+  logbookNumber String?
+  status        VehicleStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   company          Company           @relation(fields: [companyId], references: [id])
   model            VehicleModel      @relation(fields: [modelId], references: [id])
@@ -273,6 +277,9 @@ enum InspectionStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
   CANCELLED
 }
 

@@ -3,10 +3,17 @@ import { prisma } from "../lib/prisma.js";
 // POST /api/vehicle-models
 export const createVehicleModel = async (req, res) => {
   try {
-    const { brandId, name, year } = req.body;
+    const { brandId, name, year, description } = req.body;
     if (!brandId || !name) return res.status(400).json({ error: "brandId and name are required" });
+    const createdBy = req.user?.fullName || req.user?.username || "System";
     const model = await prisma.vehicleModel.create({
-      data: { brandId: Number(brandId), name, year: year ? Number(year) : null },
+      data: { 
+        brandId: Number(brandId), 
+        name, 
+        year: year ? Number(year) : null, 
+        description,
+        createdBy
+      },
       include: { brand: true },
     });
     res.status(201).json(model);
@@ -49,10 +56,15 @@ export const getVehicleModelById = async (req, res) => {
 // PUT /api/vehicle-models/:id
 export const updateVehicleModel = async (req, res) => {
   try {
-    const { name, year, brandId } = req.body;
+    const { name, year, brandId, description } = req.body;
     const model = await prisma.vehicleModel.update({
       where: { id: Number(req.params.id) },
-      data: { name, year: year ? Number(year) : undefined, brandId: brandId ? Number(brandId) : undefined },
+      data: { 
+        name, 
+        description,
+        year: year ? Number(year) : undefined, 
+        brandId: brandId ? Number(brandId) : undefined 
+      },
       include: { brand: true },
     });
     res.json(model);

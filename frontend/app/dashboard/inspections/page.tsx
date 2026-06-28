@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Search, Plus, Edit, Eye, Trash2, Loader2, ClipboardList } from "lucide-react"
+import { Search, Plus, Edit, Eye, Trash2, Loader2, ClipboardList, CheckCircle } from "lucide-react"
 import toast from "react-hot-toast"
 import { inspectionApi, vehicleApi, inspectorApi, Inspection, Vehicle, Inspector } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -113,6 +113,9 @@ export default function InspectionsPage() {
               <option value="PENDING">Pending</option>
               <option value="IN_PROGRESS">In Progress</option>
               <option value="COMPLETED">Completed</option>
+              <option value="AWAITING_APPROVAL">Awaiting Approval</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
             <div className="relative">
@@ -154,6 +157,11 @@ export default function InspectionsPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => { setSelected(row); setIsViewOpen(true) }} className="h-8 w-8 text-primary hover:bg-primary/5 rounded"><Eye className="size-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(row)} className="h-8 w-8 text-blue-600 hover:bg-blue-50 dark:hover:bg-white/10 rounded"><Edit className="size-4" /></Button>
+                      {row.status === "COMPLETED" && (
+                        <Button variant="ghost" size="icon" title="Send for Approval"
+                          onClick={async () => { try { await inspectionApi.update(row.id, { status: "AWAITING_APPROVAL" }); toast.success("Sent for approval!"); loadData() } catch { toast.error("Failed") } }}
+                          className="h-8 w-8 text-amber-600 hover:bg-amber-50 dark:hover:bg-white/10 rounded"><CheckCircle className="size-4" /></Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => { setSelected(row); setIsDeleteOpen(true) }} className="h-8 w-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-white/10 rounded"><Trash2 className="size-4" /></Button>
                     </div>
                   </TableCell>
@@ -191,6 +199,9 @@ export default function InspectionsPage() {
                 <option value="PENDING">Pending</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="COMPLETED">Completed</option>
+                <option value="AWAITING_APPROVAL">Awaiting Approval</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
@@ -241,6 +252,9 @@ export default function InspectionsPage() {
                 <option value="PENDING">Pending</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="COMPLETED">Completed</option>
+                <option value="AWAITING_APPROVAL">Awaiting Approval</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
             </div>

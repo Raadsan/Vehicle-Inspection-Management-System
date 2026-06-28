@@ -35,6 +35,7 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   customRole?: Role;
+  company?: { id: number; name: string };
 }
 
 export interface Role {
@@ -83,7 +84,11 @@ export interface Company {
   email?: string;
   phone?: string;
   address?: string;
+  logo?: string;
   isActive: boolean;
+  createdAt?: string;
+  users?: Array<{ id: number; username: string; role: string; email?: string }>;
+  _count?: { vehicles: number; inspectors: number; inspections: number };
 }
 
 export interface Owner {
@@ -100,13 +105,14 @@ export interface Owner {
 export interface Vehicle {
   id: number;
   companyId: number;
-  ownerId: number;
+  ownerId?: number;
   modelId?: number;
   plateNumber: string;
   color?: string;
   year?: number;
   vin?: string;
   mileage?: number;
+  logbookNumber?: string;
   status: "ACTIVE" | "INACTIVE" | "SCRAPPED" | "UNDER_INSPECTION" | "BANNED";
   model?: VehicleModel;
   owner?: Owner;
@@ -115,6 +121,9 @@ export interface Vehicle {
 export interface VehicleBrand {
   id: number;
   name: string;
+  description?: string;
+  createdAt?: string;
+  models?: VehicleModel[];
 }
 
 export interface VehicleModel {
@@ -122,6 +131,8 @@ export interface VehicleModel {
   brandId: number;
   name: string;
   year?: number;
+  description?: string;
+  createdBy?: string;
   brand?: VehicleBrand;
 }
 
@@ -133,6 +144,7 @@ export interface Inspector {
   email?: string;
   licenseNo?: string;
   isActive: boolean;
+  company?: { id: number; name: string };
 }
 
 export interface Inspection {
@@ -143,11 +155,12 @@ export interface Inspection {
   scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
-  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "CANCELLED";
   notes?: string;
   overallResult?: "PASS" | "FAIL" | "CONDITIONAL";
   vehicle?: Vehicle;
   inspector?: Inspector;
+  company?: { id: number; name: string };
   createdAt?: string;
 }
 
@@ -162,16 +175,20 @@ export const userApi = {
     const res = await api.get<User>(`/users/${id}`);
     return res.data;
   },
-  create: async (data: Partial<User>) => {
+  create: async (data: Partial<User> & { password?: string }) => {
     const res = await api.post<User>("/users", data);
     return res.data;
   },
-  update: async (id: number, data: Partial<User>) => {
+  update: async (id: number, data: Partial<User> & { password?: string }) => {
     const res = await api.put<User>(`/users/${id}`, data);
     return res.data;
   },
   delete: async (id: number) => {
     const res = await api.delete(`/users/${id}`);
+    return res.data;
+  },
+  login: async (username: string, password: string) => {
+    const res = await api.post("/users/login", { username, password });
     return res.data;
   },
 };
@@ -242,6 +259,29 @@ export const auditLogApi = {
   },
 };
 
+export const companyApi = {
+  getAll: async () => {
+    const res = await api.get<Company[]>("/companies");
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<Company>(`/companies/${id}`);
+    return res.data;
+  },
+  create: async (data: Partial<Company> & { ownerPassword: string; ownerUsername?: string }) => {
+    const res = await api.post<Company>("/companies", data);
+    return res.data;
+  },
+  update: async (id: number, data: Partial<Company>) => {
+    const res = await api.put<Company>(`/companies/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/companies/${id}`);
+    return res.data;
+  },
+};
+
 export const ownerApi = {
   getAll: async () => {
     const res = await api.get<Owner[]>("/owners");
@@ -286,13 +326,50 @@ export const vehicleApi = {
     const res = await api.delete(`/vehicles/${id}`);
     return res.data;
   },
-  // Supporting brands & models
-  getBrands: async () => {
+};
+
+export const vehicleBrandApi = {
+  getAll: async () => {
     const res = await api.get<VehicleBrand[]>("/vehicle-brands");
     return res.data;
   },
-  getModels: async () => {
-    const res = await api.get<VehicleModel[]>("/vehicle-models");
+  getById: async (id: number) => {
+    const res = await api.get<VehicleBrand>(`/vehicle-brands/${id}`);
+    return res.data;
+  },
+  create: async (data: { name: string; description?: string }) => {
+    const res = await api.post<VehicleBrand>("/vehicle-brands", data);
+    return res.data;
+  },
+  update: async (id: number, data: { name: string; description?: string }) => {
+    const res = await api.put<VehicleBrand>(`/vehicle-brands/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/vehicle-brands/${id}`);
+    return res.data;
+  },
+};
+
+export const vehicleModelApi = {
+  getAll: async (brandId?: number) => {
+    const res = await api.get<VehicleModel[]>("/vehicle-models", { params: brandId ? { brandId } : undefined });
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<VehicleModel>(`/vehicle-models/${id}`);
+    return res.data;
+  },
+  create: async (data: { brandId: number; name: string; year?: number; description?: string }) => {
+    const res = await api.post<VehicleModel>("/vehicle-models", data);
+    return res.data;
+  },
+  update: async (id: number, data: { name?: string; year?: number; description?: string }) => {
+    const res = await api.put<VehicleModel>(`/vehicle-models/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/vehicle-models/${id}`);
     return res.data;
   },
 };
@@ -321,8 +398,8 @@ export const inspectorApi = {
 };
 
 export const inspectionApi = {
-  getAll: async () => {
-    const res = await api.get<Inspection[]>("/inspections");
+  getAll: async (params?: { companyId?: number; status?: string }) => {
+    const res = await api.get<Inspection[]>("/inspections", { params });
     return res.data;
   },
   getById: async (id: number) => {
@@ -339,6 +416,14 @@ export const inspectionApi = {
   },
   delete: async (id: number) => {
     const res = await api.delete(`/inspections/${id}`);
+    return res.data;
+  },
+  approve: async (id: number, notes?: string) => {
+    const res = await api.post<Inspection>(`/inspections/${id}/approve`, { notes });
+    return res.data;
+  },
+  reject: async (id: number, notes?: string) => {
+    const res = await api.post<Inspection>(`/inspections/${id}/reject`, { notes });
     return res.data;
   },
 };

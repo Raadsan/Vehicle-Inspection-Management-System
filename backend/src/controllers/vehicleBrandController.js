@@ -3,10 +3,10 @@ import { prisma } from "../lib/prisma.js";
 // POST /api/vehicle-brands
 export const createVehicleBrand = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, description } = req.body;
     if (!name) return res.status(400).json({ error: "Brand name is required" });
     const brand = await prisma.vehicleBrand.create({
-      data: { name },
+      data: { name, description },
       include: { models: true },
     });
     res.status(201).json(brand);
@@ -46,9 +46,10 @@ export const getVehicleBrandById = async (req, res) => {
 // PUT /api/vehicle-brands/:id
 export const updateVehicleBrand = async (req, res) => {
   try {
+    const { name, description } = req.body;
     const brand = await prisma.vehicleBrand.update({
       where: { id: Number(req.params.id) },
-      data: { name: req.body.name },
+      data: { name, description },
     });
     res.json(brand);
   } catch (err) {

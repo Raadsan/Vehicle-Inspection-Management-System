@@ -84,12 +84,17 @@ export function getOrderStatusBadgeClass(status: string): string {
     case "COMPLETED":
     case "PASSED":
       return "bg-emerald-600 text-white";
+    case "APPROVED":
+      return "bg-emerald-700 text-white";
     case "IN_PROGRESS":
     case "UNDER_REVIEW":
       return "bg-[#1565c0] text-white";
     case "PENDING":
       return "bg-amber-500 text-white";
+    case "AWAITING_APPROVAL":
+      return "bg-orange-500 text-white";
     case "FAILED":
+    case "REJECTED":
       return "bg-rose-600 text-white";
     case "CANCELLED":
       return "bg-zinc-500 text-white";
