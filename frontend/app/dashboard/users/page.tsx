@@ -251,7 +251,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className={dashboardTableCellClass}>
                       <div className="flex items-center gap-2">
-                        <UserAvatar user={row} />
+                        {/* <UserAvatar user={row} /> */}
                         <span className="text-sm font-semibold text-foreground">{row.username}</span>
                       </div>
                     </TableCell>
