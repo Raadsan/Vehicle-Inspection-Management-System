@@ -13,7 +13,9 @@ import {
   pageHeaderWrapperClass, dashboardCardClass, dashboardTableHeaderClass, dashboardTableHeadRowClass,
   dashboardTableHeadClass, dashboardTableBodyRowClass, dashboardTableCellClass, dashboardTableIdClass,
   dashboardStatusBadgeClass, formatStatusLabel, dashboardAddButtonClass,
+  getVehicleBrand, getVehicleModelName, getVehicleColor, getVehicleYear, vehicleCellTextClass,
 } from "@/lib/dashboard-ui"
+import { OwnerDisplay } from "@/components/owner-display"
 
 const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground"
 const selectCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground"
@@ -306,14 +308,14 @@ export default function VehiclesPage() {
           <Table className="w-full">
             <TableHeader className={dashboardTableHeaderClass}>
               <TableRow className={dashboardTableHeadRowClass}>
-                {["NO", "Plate Number", "Brand & Model", "Owner", "Logbook No", "VIN", "Year / Color", "Status", "Actions"].map(h => (
+                {["NO", "Plate Number", "Brand", "Model", "Color", "Year", "Owner", "Logbook No", "VIN", "Status", "Actions"].map(h => (
                   <TableHead key={h} className={cn(dashboardTableHeadClass, h === "Actions" ? "text-right" : "text-left")}>{h}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody className="bg-card">
               {loading ? (
-                <TableRow><TableCell colSpan={9} className="py-14 text-center">
+                <TableRow><TableCell colSpan={11} className="py-14 text-center">
                   <Loader2 className="size-6 animate-spin mx-auto text-primary" />
                   <p className="text-sm text-muted-foreground font-medium mt-2">Loading vehicles...</p>
                 </TableCell></TableRow>
@@ -326,18 +328,22 @@ export default function VehiclesPage() {
                     <span className="text-sm font-bold text-foreground">{row.plateNumber}</span>
                   </TableCell>
                   <TableCell className={dashboardTableCellClass}>
-                    <span className="text-sm text-zinc-800 dark:text-zinc-200 font-semibold">
-                      {row.model?.brand?.name ? `${row.model.brand.name} ${row.model.name}` : "—"}
-                    </span>
+                    <span className={vehicleCellTextClass}>{getVehicleBrand(row)}</span>
                   </TableCell>
-                  <TableCell className={dashboardTableCellClass}><span className="text-sm text-zinc-600 dark:text-zinc-300 font-normal">{row.owner?.fullName || "—"}</span></TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <span className={vehicleCellTextClass}>{getVehicleModelName(row)}</span>
+                  </TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <span className={vehicleCellTextClass}>{getVehicleColor(row)}</span>
+                  </TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <span className={vehicleCellTextClass}>{getVehicleYear(row)}</span>
+                  </TableCell>
+                  <TableCell className={dashboardTableCellClass}>
+                    <OwnerDisplay owner={row.owner} vehicle={row} />
+                  </TableCell>
                   <TableCell className={dashboardTableCellClass}><span className="text-sm text-zinc-600 dark:text-zinc-300 font-normal">{row.logbookNumber || "—"}</span></TableCell>
                   <TableCell className={dashboardTableCellClass}><span className="text-sm font-mono text-zinc-500">{row.vin || "—"}</span></TableCell>
-                  <TableCell className={dashboardTableCellClass}>
-                    <span className="text-sm text-zinc-500 font-normal">
-                      {row.year || "—"} / {row.color || "—"}
-                    </span>
-                  </TableCell>
                   <TableCell className={dashboardTableCellClass}><span className={cn(dashboardStatusBadgeClass, statusBadge[row.status] || "bg-zinc-400 text-white")}>{formatStatusLabel(row.status)}</span></TableCell>
                   <TableCell className={cn(dashboardTableCellClass, "text-right")}>
                     <div className="flex items-center justify-end gap-1">
@@ -348,7 +354,7 @@ export default function VehiclesPage() {
                   </TableCell>
                 </TableRow>
               )) : (
-                <TableRow><TableCell colSpan={9} className="py-12 text-center text-zinc-400 text-sm">No vehicles found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="py-12 text-center text-zinc-400 text-sm">No vehicles found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -551,12 +557,14 @@ export default function VehiclesPage() {
             <div className="space-y-3">
               {[
                 ["Plate Number", selected.plateNumber],
-                ["Brand & Model", selected.model?.brand?.name ? `${selected.model.brand.name} ${selected.model.name}` : "—"],
+                ["Brand", getVehicleBrand(selected)],
+                ["Model", getVehicleModelName(selected)],
+                ["Color", getVehicleColor(selected)],
+                ["Year", getVehicleYear(selected)],
                 ["Owner", selected.owner?.fullName || "—"],
+                ["Owner Phone", selected.owner?.phone || "—"],
                 ["Logbook Number (Buuga Aqoonsiga)", selected.logbookNumber || "—"],
                 ["VIN (Chassis No)", selected.vin || "—"],
-                ["Year of Manufacture", selected.year?.toString() || "—"],
-                ["Color", selected.color || "—"],
                 ["Mileage", selected.mileage ? `${selected.mileage.toLocaleString()} km` : "—"],
                 ["Status", formatStatusLabel(selected.status)]
               ].map(([l, v]) => (

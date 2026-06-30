@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Search, Plus, Edit, Eye, Trash2, Loader2 } from "lucide-react"
+import Image from "next/image"
+import { Search, Plus, Edit, Eye, Trash2, Loader2, Upload } from "lucide-react"
 import toast from "react-hot-toast"
 import { userApi, roleApi, User, Role } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -15,16 +16,31 @@ import {
   dashboardStatusBadgeClass, dashboardAddButtonClass,
 } from "@/lib/dashboard-ui"
 
-const roleBadge: Record<string, string> = {
-  SUPER_ADMIN: "bg-[#0a2744] text-white",
-  OWNER: "bg-[#1565c0] text-white",
-  INSPECTOR: "bg-[#2196f3] text-white",
-  STAFF: "bg-[#4fc3f7] text-[#0a2744]",
-}
-
 const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground"
 const selectCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal text-foreground"
 const labelCls = "block text-sm font-semibold text-[#0a2744] dark:text-zinc-300 mb-1"
+
+function getErrorMessage(err: unknown) {
+  const e = err as { response?: { data?: { error?: string } }; message?: string }
+  return e.response?.data?.error || e.message || "Unknown error"
+}
+
+function getInitials(user: User) {
+  return (user.fullName || user.username || "U")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+function UserAvatar({ user, className = "size-9" }: { user: User; className?: string }) {
+  return (
+    <div className={cn(className, "rounded-full overflow-hidden bg-gradient-to-br from-[#22c55e] to-[#3b82f6] text-white font-bold flex items-center justify-center shrink-0")}>
+      {user.avatarUrl ? <Image src={user.avatarUrl} alt={user.fullName || user.username} width={64} height={64} className="w-full h-full object-cover" unoptimized /> : getInitials(user)}
+    </div>
+  )
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -43,10 +59,10 @@ export default function UsersPage() {
   const [password, setPassword] = useState("")
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
-  const [role, setRole] = useState<User["role"]>("STAFF")
   const [roleId, setRoleId] = useState<number | "">("")
   const [isActive, setIsActive] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -58,15 +74,21 @@ export default function UsersPage() {
       const [usersData, rolesData] = await Promise.all([userApi.getAll(), roleApi.getAll()])
       setUsers(usersData)
       setRoles(rolesData)
-    } catch (err: any) {
-      toast.error("Failed to load: " + (err.response?.data?.error || err.message))
+    } catch (err: unknown) {
+      toast.error("Failed to load: " + getErrorMessage(err))
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadData() }, [])
-  useEffect(() => { setCurrentPage(1) }, [search, roleFilter])
+  useEffect(() => {
+    const id = window.setTimeout(() => { loadData() }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
+  useEffect(() => {
+    const id = window.setTimeout(() => { setCurrentPage(1) }, 0)
+    return () => window.clearTimeout(id)
+  }, [search, roleFilter])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +113,7 @@ export default function UsersPage() {
         isActive
       })
       toast.success("User created"); setIsAddOpen(false); loadData()
-    } catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    } catch (err: unknown) { toast.error("Failed: " + getErrorMessage(err)) }
     finally { setSubmitting(false) }
   }
 
@@ -113,7 +135,7 @@ export default function UsersPage() {
       if (password) payload.password = password
       await userApi.update(selected.id, payload)
       toast.success("User updated"); setIsEditOpen(false); loadData()
-    } catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    } catch (err: unknown) { toast.error("Failed: " + getErrorMessage(err)) }
     finally { setSubmitting(false) }
   }
 
@@ -121,8 +143,24 @@ export default function UsersPage() {
     if (!selected) return; setSubmitting(true)
     try {
       await userApi.delete(selected.id); toast.success("User deleted"); setIsDeleteOpen(false); loadData()
-    } catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    } catch (err: unknown) { toast.error("Failed: " + getErrorMessage(err)) }
     finally { setSubmitting(false) }
+  }
+
+  const handleAvatarUpload = async (file?: File) => {
+    if (!selected || !file) return
+    setUploadingAvatar(true)
+    try {
+      const updated = await userApi.uploadAvatar(selected.id, file)
+      setSelected(updated)
+      setUsers((prev) => prev.map((user) => user.id === updated.id ? updated : user))
+      toast.success("User image updated")
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error("Upload failed: " + (e.response?.data?.error || e.message))
+    } finally {
+      setUploadingAvatar(false)
+    }
   }
 
   const openAdd = () => {
@@ -212,7 +250,10 @@ export default function UsersPage() {
                       <span className={dashboardTableIdClass}>{(currentPage - 1) * pageSize + idx + 1}</span>
                     </TableCell>
                     <TableCell className={dashboardTableCellClass}>
-                      <span className="text-sm font-semibold text-foreground">{row.username}</span>
+                      <div className="flex items-center gap-2">
+                        <UserAvatar user={row} />
+                        <span className="text-sm font-semibold text-foreground">{row.username}</span>
+                      </div>
                     </TableCell>
                     <TableCell className={dashboardTableCellClass}>
                       <span className="text-sm text-zinc-600 dark:text-zinc-300">{row.fullName || "—"}</span>
@@ -319,6 +360,20 @@ export default function UsersPage() {
             <DialogDescription className="text-sm text-zinc-400">Update user account details.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit} className="grid grid-cols-2 gap-4 py-2">
+            {selected && (
+              <div className="col-span-2 flex items-center gap-4 rounded-xl border border-zinc-200 dark:border-border bg-zinc-50/70 dark:bg-muted/10 p-4">
+                <UserAvatar user={selected} className="size-16" />
+                <div>
+                  <p className="text-sm font-bold text-[#0a2744] dark:text-white">Profile Image</p>
+                  <p className="text-xs text-zinc-500 mb-2">Admin can change this user profile photo.</p>
+                  <label className="inline-flex h-9 px-3 rounded-md border border-zinc-200 dark:border-border bg-white dark:bg-card text-xs font-bold uppercase tracking-wider items-center gap-2 cursor-pointer hover:bg-zinc-50">
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAvatarUpload(e.target.files?.[0])} />
+                    {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                    Upload Image
+                  </label>
+                </div>
+              </div>
+            )}
             <div><label className={labelCls}>Username *</label><input required type="text" value={username} onChange={e => setUsername(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>New Password <span className="text-zinc-400 font-normal text-xs">(blank = keep)</span></label><input type="password" placeholder="New password" value={password} onChange={e => setPassword(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Full Name</label><input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls} /></div>
@@ -361,6 +416,9 @@ export default function UsersPage() {
             const customRole = selected.roleId ? roles.find(r => r.id === selected.roleId) : null
             return (
               <div className="space-y-3">
+                <div className="flex justify-center pb-2">
+                  <UserAvatar user={selected} className="size-20 text-xl" />
+                </div>
                 {[
                   ["Username", selected.username],
                   ["Full Name", selected.fullName || "—"],

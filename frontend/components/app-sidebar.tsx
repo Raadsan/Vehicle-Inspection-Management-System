@@ -36,9 +36,8 @@ import {
 } from "@/components/ui/collapsible"
 import { NavUser } from "@/components/nav-user"
 import { getStoredUser, canViewPage, type StoredUser } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
-// ─── Navigation Config ────────────────────────────────────────────────────────
-// roles: undefined = visible to all, or array of roles that CAN see it
 type NavItem = {
   title: string
   url: string
@@ -53,26 +52,18 @@ const navItems: NavItem[] = [
     url: "/dashboard",
     icon: LayoutDashboardIcon,
   },
-
-  // ── Admin-only sections ──
-  
   {
     title: "Users",
     url: "/dashboard/users",
     icon: UsersIcon,
     roles: ["SUPER_ADMIN"],
   },
-
   {
     title: "Companies",
     url: "/dashboard/companies",
     icon: Building2,
     roles: ["SUPER_ADMIN"],
   },
-
-  
-
-  // ── Shared sections ──
   {
     title: "Vehicle Owners",
     url: "/dashboard/owners",
@@ -107,6 +98,8 @@ const navItems: NavItem[] = [
     children: [
       { title: "Awaiting Approval", url: "/dashboard/inspections/approval" },
       { title: "Approved", url: "/dashboard/inspections/approved" },
+      { title: "Expired", url: "/dashboard/inspections/expired" },
+      { title: "Rejected", url: "/dashboard/inspections/rejected" },
     ],
   },
   {
@@ -117,7 +110,6 @@ const navItems: NavItem[] = [
     children: [
       { title: "Customer Payments", url: "/dashboard/payments/customers" },
       { title: "Invoices", url: "/dashboard/payments/invoices" },
-      { title: "Transactions", url: "/dashboard/payments/transactions" },
     ],
   },
   {
@@ -125,8 +117,12 @@ const navItems: NavItem[] = [
     url: "/dashboard/reports",
     icon: FileTextIcon,
     roles: ["SUPER_ADMIN", "STAFF"],
+    children: [
+      { title: "Vehicle Report", url: "/dashboard/reports/vehicles" },
+      { title: "Payment Report", url: "/dashboard/reports/payments" },
+      { title: "Vehicle Inspection Report", url: "/dashboard/reports/inspections" },
+    ],
   },
-
   {
     title: "Configuration",
     url: "/dashboard/configuration",
@@ -140,21 +136,41 @@ const navItems: NavItem[] = [
   },
 ]
 
-// ─── Sidebar Component ────────────────────────────────────────────────────────
+const activeMenuClass =
+  "bg-[#1565c0]/10 text-[#1565c0] font-semibold hover:bg-[#1565c0]/15 hover:text-[#1565c0] data-[active=true]:bg-[#1565c0]/10 data-[active=true]:text-[#1565c0]"
+const activeSubMenuClass =
+  "bg-[#1565c0]/10 text-[#1565c0] font-semibold hover:bg-[#1565c0]/15 hover:text-[#1565c0] data-[active=true]:bg-[#1565c0]/10 data-[active=true]:text-[#1565c0]"
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-
   const [user, setUser] = React.useState<StoredUser | null>(null)
+  const [openSection, setOpenSection] = React.useState<string | null>(null)
+
   React.useEffect(() => {
     setUser(getStoredUser())
   }, [])
 
-  const userRole = user?.role ?? null
-
-  const isActive = (url: string) => {
+  const isChildActive = (url: string) => {
     if (url === "/dashboard") return pathname === "/dashboard"
-    return pathname.startsWith(url)
+    if (url === "/dashboard/inspections") {
+      return pathname === "/dashboard/inspections" || pathname.startsWith("/dashboard/inspections/create")
+    }
+    if (url === "/dashboard/inspections/approval") {
+      return pathname === "/dashboard/inspections/approval"
+    }
+    // All other nav child URLs are unique — exact match only
+    return pathname === url
   }
+
+  const sectionIsOpen = (item: NavItem) => {
+    if (!item.children) return false
+    return item.children.some((child) => isChildActive(child.url))
+  }
+
+  React.useEffect(() => {
+    const openParent = navItems.find((item) => item.children && sectionIsOpen(item))
+    setOpenSection(openParent?.title ?? null)
+  }, [pathname])
 
   const itemVisible = (item: NavItem) => {
     if (item.children) {
@@ -169,7 +185,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      {/* ─── Header / Logo ─────────────────────────────────────── */}
       <SidebarHeader className="border-b border-sidebar-border pb-4 pt-5 px-4 flex items-center justify-center">
         <Link href="/dashboard" className="flex items-center justify-center w-full">
           <Image
@@ -183,61 +198,72 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </Link>
       </SidebarHeader>
 
-      {/* ─── Navigation ──────────────────────────────────────────── */}
       <SidebarContent className="py-4 overflow-y-auto px-2">
         <SidebarGroup>
           <SidebarMenu className="gap-2">
             {visibleItems.map((item) =>
               item.children ? (
-                // ── Collapsible Item ──
                 <Collapsible
                   key={item.title}
                   asChild
-                  defaultOpen={isActive(item.url)}
+                  open={openSection === item.title}
+                  onOpenChange={(open) => setOpenSection(open ? item.title : null)}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
                         tooltip={item.title}
-                        data-active={isActive(item.url)}
-                        className="font-normal text-[14.5px] text-zinc-700 hover:text-primary transition-colors py-2.5 px-3 h-11.5 rounded-lg"
+                        className="font-normal text-[14.5px] text-zinc-700 hover:text-[#1565c0] transition-colors py-2.5 px-3 h-11.5 rounded-lg"
                       >
-                        <item.icon className="shrink-0 size-5 text-zinc-500 group-data-[active=true]:text-primary" />
+                        <item.icon className="shrink-0 size-5 text-zinc-500" />
                         <span className="flex-1 ml-1">{item.title}</span>
                         <ChevronRightIcon className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 text-zinc-400" />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub className="ml-5 mt-1 border-l border-zinc-100 pl-2 gap-1">
-                        {visibleChildren(item).map((child) => (
-                          <SidebarMenuSubItem key={child.title}>
-                            <SidebarMenuSubButton
-                              asChild
-                              data-active={pathname === child.url}
-                              className="font-normal text-[13.5px] text-zinc-500 hover:text-primary transition-colors py-2 px-3 h-9 rounded-md"
-                            >
-                              <Link href={child.url}>
-                                <span>{child.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
+                        {visibleChildren(item).map((child) => {
+                          const childActive = isChildActive(child.url)
+                          return (
+                            <SidebarMenuSubItem key={child.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={childActive}
+                                className={cn(
+                                  "font-normal text-[13.5px] text-zinc-500 hover:text-[#1565c0] transition-colors py-2 px-3 h-9 rounded-md",
+                                  childActive && activeSubMenuClass
+                                )}
+                              >
+                                <Link href={child.url}>
+                                  <span>{child.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )
+                        })}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>
                 </Collapsible>
               ) : (
-                // ── Simple Item ──
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
-                    data-active={isActive(item.url)}
-                    className="font-normal text-[14.5px] text-zinc-700 hover:text-primary transition-colors py-2.5 px-3 h-11.5 rounded-lg"
+                    isActive={isChildActive(item.url)}
+                    className={cn(
+                      "font-normal text-[14.5px] text-zinc-700 hover:text-[#1565c0] transition-colors py-2.5 px-3 h-11.5 rounded-lg",
+                      isChildActive(item.url) && activeMenuClass
+                    )}
                   >
                     <Link href={item.url}>
-                      <item.icon className="shrink-0 size-5 text-zinc-500 group-data-[active=true]:text-primary" />
+                      <item.icon
+                        className={cn(
+                          "shrink-0 size-5 text-zinc-500",
+                          isChildActive(item.url) && "text-[#1565c0]"
+                        )}
+                      />
                       <span className="ml-1">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -248,7 +274,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* ─── Footer / User Menu ─────────────────────────────────────── */}
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <NavUser />
       </SidebarFooter>

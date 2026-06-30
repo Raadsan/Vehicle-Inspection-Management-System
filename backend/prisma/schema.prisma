@@ -47,6 +47,7 @@ model User {
   password    String                   // bcrypt hashed
   email       String?   @unique
   fullName    String?
+  avatarUrl   String?
   role        UserRole  @default(OWNER)
   roleId      Int?                     // optional link to custom Role table
   isActive    Boolean   @default(true)
@@ -228,6 +229,7 @@ model Vehicle {
   logbookNumber    String?
   status           VehicleStatus @default(ACTIVE)
   registrationFeeId Int?
+  createdByUserId  Int?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -238,6 +240,8 @@ model Vehicle {
   vehicleOwners     VehicleOwner[]
   vehicleInspectors VehicleInspector[]
   inspections       Inspection[]
+  customerPayments  CustomerPayment[]
+  invoices          Invoice[]
 }
 
 enum VehicleStatus {
@@ -302,9 +306,12 @@ model Inspection {
   companyId     Int
   vehicleId     Int
   inspectorId   Int?
+  createdByUserId Int?
   scheduledAt   DateTime?
   startedAt     DateTime?
   completedAt   DateTime?
+  approvedAt    DateTime?
+  expiresAt     DateTime?
   status        InspectionStatus @default(PENDING)
   notes         String?          @db.Text
   overallResult InspectionResult?
@@ -326,6 +333,7 @@ enum InspectionStatus {
   AWAITING_APPROVAL
   APPROVED
   REJECTED
+  EXPIRED
   CANCELLED
 }
 
@@ -395,27 +403,37 @@ model InspectorPayment {
 // 14. CUSTOMER_PAYMENTS
  
 model CustomerPayment {
-  id           Int           @id @default(autoincrement())
+  id           Int                    @id @default(autoincrement())
   companyId    Int
   ownerId      Int
+  vehicleId    Int?
   invoiceId    Int?
-  amount       Decimal       @db.Decimal(10, 2)
-  currency     String        @default("USD")
-  paymentDate  DateTime      @default(now())
-  method       PaymentMethod @default(CASH)
+  amount       Decimal                @db.Decimal(10, 2)
+  currency     String                 @default("USD")
+  status       CustomerPaymentStatus  @default(UNPAID)
+  paymentDate  DateTime?
+  method       PaymentMethod?
   reference    String?
-  notes        String?
-  createdAt    DateTime      @default(now())
+  notes        String?                @db.Text
+  createdAt    DateTime               @default(now())
 
   company      Company   @relation(fields: [companyId], references: [id])
   owner        Owner     @relation(fields: [ownerId], references: [id])
+  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id])
   invoice      Invoice?  @relation(fields: [invoiceId], references: [id])
+}
+
+enum CustomerPaymentStatus {
+  UNPAID
+  PAID
 }
 
 enum PaymentMethod {
   CASH
   BANK_TRANSFER
   MOBILE_MONEY
+  EVC
+  MERCHANT
   CARD
   OTHER
 }
@@ -426,6 +444,7 @@ model Invoice {
   id            Int           @id @default(autoincrement())
   companyId     Int
   ownerId       Int
+  vehicleId     Int?
   inspectionId  Int?
   invoiceNo     String        @unique
   totalAmount   Decimal       @db.Decimal(10, 2)
@@ -439,6 +458,7 @@ model Invoice {
 
   company          Company           @relation(fields: [companyId], references: [id])
   owner            Owner             @relation(fields: [ownerId], references: [id])
+  vehicle          Vehicle?          @relation(fields: [vehicleId], references: [id])
   inspection       Inspection?       @relation(fields: [inspectionId], references: [id])
   transactions     PaymentTransaction[]
   customerPayments CustomerPayment[]

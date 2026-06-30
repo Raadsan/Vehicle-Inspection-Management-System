@@ -99,6 +99,8 @@ export function getOrderStatusBadgeClass(status: string): string {
     case "FAILED":
     case "REJECTED":
       return "bg-rose-600 text-white";
+    case "EXPIRED":
+      return "bg-zinc-600 text-white";
     case "CANCELLED":
       return "bg-zinc-500 text-white";
     default:
@@ -109,6 +111,77 @@ export function getOrderStatusBadgeClass(status: string): string {
 export function formatStatusLabel(status: string): string {
   if (!status) return "—";
   return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export function formatInspectionInspectorLabel(
+  inspection: {
+    company?: { name?: string };
+    createdByUser?: {
+      fullName?: string | null;
+      username?: string;
+      role?: string;
+      company?: { name?: string };
+    } | null;
+  }
+): string {
+  const user = inspection.createdByUser;
+  const companyName = inspection.company?.name || user?.company?.name;
+
+  if (user?.role === "SUPER_ADMIN") return "Super Admin";
+  if (user?.role === "STAFF") return "Admin";
+  if (user?.role === "OWNER" || user?.role === "INSPECTOR") {
+    return companyName || user.fullName || user.username || "—";
+  }
+  if (companyName) return companyName;
+  return "—";
+}
+
+export function formatInspectionCreator(
+  user?: {
+    fullName?: string | null;
+    username?: string;
+    role?: string;
+    company?: { name?: string };
+  } | null
+): string {
+  if (!user) return "—";
+  const name = user.fullName || user.username || "Unknown";
+  if (user.role === "SUPER_ADMIN") return `${name} (Admin)`;
+  if (user.role === "STAFF" || user.role === "OWNER" || user.role === "INSPECTOR") {
+    return user.company?.name || name;
+  }
+  if (user.company?.name) return user.company.name;
+  return name;
+}
+
+export function getInspectionInspectorDisplay(
+  user?: {
+    fullName?: string | null;
+    username?: string;
+    role?: string;
+    company?: { name?: string };
+  } | null,
+  inspectionCompany?: { name?: string } | null
+): { primary: string; secondary?: string } {
+  const primary = formatInspectionCreator(user);
+  const personName = user?.fullName || user?.username;
+
+  if (user?.role === "SUPER_ADMIN") {
+    const secondary = inspectionCompany?.name && inspectionCompany.name !== primary
+      ? inspectionCompany.name
+      : undefined;
+    return { primary, secondary };
+  }
+
+  if (personName && personName !== primary) {
+    return { primary, secondary: personName };
+  }
+
+  if (inspectionCompany?.name && inspectionCompany.name !== primary) {
+    return { primary, secondary: inspectionCompany.name };
+  }
+
+  return { primary };
 }
 
 const dashboardStatIconBaseClass =
@@ -128,3 +201,60 @@ export function dashboardStatIconClass(index = 0): string {
     dashboardStatIconBgVariants[index % dashboardStatIconBgVariants.length];
   return `${dashboardStatIconBaseClass} ${bg}`;
 }
+
+// ─── Vehicle & owner display (use everywhere for consistent tables) ───────────
+
+export type VehicleDisplayLike = {
+  color?: string | null;
+  year?: number | null;
+  vehicleColor?: { name?: string } | null;
+  model?: { name?: string; brand?: { name?: string } } | null;
+  owner?: { fullName?: string; phone?: string } | null;
+  vehicleOwners?: { owner?: { fullName?: string; phone?: string } | null }[];
+};
+
+export function getVehicleBrand(vehicle?: VehicleDisplayLike | null): string {
+  return vehicle?.model?.brand?.name || "—";
+}
+
+export function getVehicleModelName(vehicle?: VehicleDisplayLike | null): string {
+  return vehicle?.model?.name || "—";
+}
+
+export function getVehicleColor(vehicle?: VehicleDisplayLike | null): string {
+  return vehicle?.color || vehicle?.vehicleColor?.name || "—";
+}
+
+export function getVehicleYear(vehicle?: VehicleDisplayLike | null): string {
+  return vehicle?.year != null ? String(vehicle.year) : "—";
+}
+
+export function getVehicleBrandModel(vehicle?: VehicleDisplayLike | null): string {
+  const brand = vehicle?.model?.brand?.name;
+  const model = vehicle?.model?.name;
+  if (brand && model) return `${brand} ${model}`;
+  return brand || model || "—";
+}
+
+export function getVehicleYearColor(vehicle?: VehicleDisplayLike | null): string {
+  const year = getVehicleYear(vehicle);
+  const color = getVehicleColor(vehicle);
+  if (year === "—" && color === "—") return "—";
+  return `${year} / ${color}`;
+}
+
+export function resolveVehicleOwner(
+  vehicle?: VehicleDisplayLike | null,
+  owner?: { fullName?: string; phone?: string } | null
+): { fullName?: string; phone?: string } | null {
+  return owner ?? vehicle?.owner ?? vehicle?.vehicleOwners?.[0]?.owner ?? null;
+}
+
+export const ownerNameClass =
+  "text-xs font-bold text-foreground uppercase tracking-wide";
+
+export const ownerPhoneBadgeClass =
+  "inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200";
+
+export const vehicleCellTextClass =
+  "text-sm text-zinc-600 dark:text-zinc-300";

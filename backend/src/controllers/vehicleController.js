@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { resolveCompanyId, companyWhere } from "../lib/tenant.js";
+import { ensureCustomerPaymentForVehicle } from "../lib/customerPayment.js";
 
 const vehicleInclude = {
   model: { include: { brand: true } },
@@ -74,11 +75,14 @@ export const createVehicle = async (req, res) => {
         status,
         logbookNumber: logbookNumber || null,
         registrationFeeId: registrationFeeId ? Number(registrationFeeId) : null,
+        createdByUserId: req.user?.id ? Number(req.user.id) : null,
       },
       include: vehicleInclude,
     });
 
     if (ownerId) await syncPrimaryOwner(vehicle.id, ownerId);
+
+    if (ownerId) await ensureCustomerPaymentForVehicle(vehicle.id);
 
     const result = await prisma.vehicle.findUnique({
       where: { id: vehicle.id },
@@ -97,9 +101,20 @@ export const getAllVehicles = async (req, res) => {
   try {
     const { status } = req.query;
     const scope = companyWhere(req, req.query.companyId);
+    const ownerFilter =
+      req.user?.role === "OWNER" && req.user?.id
+        ? {
+            OR: [
+              { createdByUserId: Number(req.user.id) },
+              { createdByUserId: null },
+            ],
+          }
+        : {};
+
     const vehicles = await prisma.vehicle.findMany({
       where: {
         ...scope,
+        ...ownerFilter,
         ...(status && { status }),
       },
       include: {
@@ -169,6 +184,8 @@ export const updateVehicle = async (req, res) => {
     });
 
     if (ownerId) await syncPrimaryOwner(Number(req.params.id), ownerId);
+
+    if (ownerId) await ensureCustomerPaymentForVehicle(Number(req.params.id));
 
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: Number(req.params.id) },

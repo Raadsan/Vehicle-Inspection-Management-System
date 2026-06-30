@@ -1,5 +1,6 @@
 // src/controllers/vehicleOwnerController.js
 import { prisma } from "../lib/prisma.js";
+import { ensureCustomerPaymentForVehicle } from "../lib/customerPayment.js";
 
 // Create VehicleOwner relation
 export const createVehicleOwner = async (req, res) => {
@@ -17,6 +18,9 @@ export const createVehicleOwner = async (req, res) => {
         toDate: toDate ? new Date(toDate) : null,
       },
     });
+    if (vehicleOwner.isPrimary) {
+      await ensureCustomerPaymentForVehicle(vehicleOwner.vehicleId);
+    }
     res.status(201).json(vehicleOwner);
   } catch (err) {
     if (err.code === "P2002") {
@@ -77,6 +81,9 @@ export const updateVehicleOwner = async (req, res) => {
         toDate: toDate ? new Date(toDate) : toDate === null ? null : undefined,
       },
     });
+    if (updated.isPrimary) {
+      await ensureCustomerPaymentForVehicle(updated.vehicleId);
+    }
     res.json(updated);
   } catch (err) {
     if (err.code === "P2025") return res.status(404).json({ error: "VehicleOwner relation not found" });

@@ -10,7 +10,6 @@ import {
   LogOut,
   User as UserIcon,
   Settings2,
-  Menu,
 } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
@@ -32,6 +31,9 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/inspections/items")) return "Inspection Items"
   if (pathname.startsWith("/dashboard/inspections/results")) return "Inspection Results"
   if (pathname.startsWith("/dashboard/inspections/approval")) return "Awaiting Approval"
+  if (pathname.startsWith("/dashboard/inspections/approved")) return "Approved Inspections"
+  if (pathname.startsWith("/dashboard/inspections/expired")) return "Expired Inspections"
+  if (pathname.startsWith("/dashboard/inspections/rejected")) return "Rejected Inspections"
   if (pathname.startsWith("/dashboard/inspections")) return "Inspections"
   if (pathname.startsWith("/dashboard/vehicles/create")) return "Add Vehicle"
   if (pathname.startsWith("/dashboard/vehicles")) return "Vehicles"
@@ -40,11 +42,16 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/inspectors")) return "Inspectors"
   if (pathname.startsWith("/dashboard/owners")) return "Vehicle Owners"
   if (pathname.startsWith("/dashboard/companies")) return "Companies"
+  if (pathname.startsWith("/dashboard/profile")) return "Profile"
+  if (pathname.startsWith("/dashboard/change-password")) return "Change Password"
+  if (pathname.startsWith("/dashboard/notifications")) return "Notifications"
   if (pathname.startsWith("/dashboard/payments/customers")) return "Customer Payments"
   if (pathname.startsWith("/dashboard/payments/inspectors")) return "Inspector Payments"
   if (pathname.startsWith("/dashboard/payments/invoices")) return "Invoices"
-  if (pathname.startsWith("/dashboard/payments/transactions")) return "Transactions"
   if (pathname.startsWith("/dashboard/payments")) return "Payments"
+  if (pathname.startsWith("/dashboard/reports/vehicles")) return "Vehicle Report"
+  if (pathname.startsWith("/dashboard/reports/payments")) return "Payment Report"
+  if (pathname.startsWith("/dashboard/reports/inspections")) return "Vehicle Inspection Report"
   if (pathname.startsWith("/dashboard/reports")) return "Reports"
   if (pathname.startsWith("/dashboard/analytics")) return "Analytics"
   if (pathname.startsWith("/dashboard/users")) return "Users"
@@ -57,28 +64,40 @@ function getPageTitle(pathname: string): string {
   return "Dashboard"
 }
 
-interface StoredUser {
-  username: string
-  fullName?: string
-  role?: string
-  email?: string
-}
+import { formatUserRoleLabel, type StoredUser } from "@/lib/auth"
+import { auditLogApi } from "@/lib/api"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const pageTitle = getPageTitle(pathname)
   const [user, setUser] = useState<StoredUser | null>(null)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false)
 
   useEffect(() => {
-    // Read user from localStorage (set at login)
-    try {
-      const stored = localStorage.getItem("user")
-      if (stored) setUser(JSON.parse(stored))
-    } catch {
-      // ignore
-    }
+    const id = window.setTimeout(() => {
+      try {
+        const stored = localStorage.getItem("user")
+        setUser(stored ? JSON.parse(stored) : null)
+      } catch {
+        setUser(null)
+      }
+    }, 0)
+    return () => window.clearTimeout(id)
   }, [])
+
+  useEffect(() => {
+    const loadUnreadNotifications = async () => {
+      try {
+        const logs = await auditLogApi.getAll({ limit: 25 })
+        const readIds = JSON.parse(localStorage.getItem("readNotifications") || "[]") as number[]
+        setHasUnreadNotifications(logs.some((log) => !readIds.includes(log.id)))
+      } catch {
+        setHasUnreadNotifications(false)
+      }
+    }
+    loadUnreadNotifications()
+  }, [pathname])
 
   const initials = user?.fullName
     ? user.fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -100,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <SidebarInset className="bg-[#f4f7fb] dark:bg-[#0f1117]">
         {/* ─── Top Header ─────────────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 border-b border-border bg-white/90 dark:bg-[#131923]/95 backdrop-blur-md shadow-sm">
+        <header aria-label={pageTitle} className="sticky top-0 z-30 border-b border-border bg-white/90 dark:bg-[#131923]/95 backdrop-blur-md shadow-sm">
           <div className="flex h-14 lg:h-[64px] items-center gap-3 px-4 lg:px-6">
             {/* Sidebar toggle + page title */}
             <div className="flex items-center gap-3 shrink-0">
@@ -135,25 +154,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Button>
 
               {/* Notifications */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full">
+              <Button asChild variant="ghost" size="icon" className="relative h-9 w-9 rounded-full">
+                <Link href="/dashboard/notifications" aria-label="Open notifications">
                     <Bell className="size-4.5 text-muted-foreground" />
-                    <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-green-500 ring-2 ring-background" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-72 mt-2 rounded-xl shadow-xl" align="end">
-                  <div className="px-4 py-3 border-b border-border">
-                    <p className="text-xs font-black uppercase tracking-widest text-foreground">Notifications</p>
-                  </div>
-                  <div className="p-6 text-center">
-                    <Bell className="size-8 text-muted-foreground/20 mx-auto mb-2" />
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                      No new notifications
-                    </p>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {hasUnreadNotifications && (
+                      <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-[#1565c0] ring-2 ring-background" />
+                    )}
+                </Link>
+              </Button>
 
               <div className="h-4 w-px bg-border/60 mx-0.5" />
 
@@ -171,7 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         {user?.fullName ?? user?.username ?? "User"}
                       </span>
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {user?.role ?? "Staff"}
+                        {formatUserRoleLabel(user)}
                       </span>
                     </div>
                     <ChevronDown className="hidden xl:block size-3.5 text-muted-foreground" />
@@ -187,7 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </div>
                       <div className="flex flex-col leading-tight min-w-0">
                         <span className="text-sm font-bold truncate">{user?.fullName ?? user?.username}</span>
-                        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{user?.role}</span>
+                        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{formatUserRoleLabel(user)}</span>
                         <span className="text-[10px] text-muted-foreground/70 truncate">{user?.email}</span>
                       </div>
                     </div>
@@ -200,9 +208,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/settings" className="flex items-center text-xs font-semibold py-2 cursor-pointer">
+                      <Link href="/dashboard/change-password" className="flex items-center text-xs font-semibold py-2 cursor-pointer">
                         <Settings2 className="mr-2 size-4" />
-                        Settings
+                        Change Password
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuGroup>

@@ -1,7 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { prisma } from "./lib/prisma.js";
+import { auditLogger } from "./middleware/auditLogger.js";
 
 // Import routers
 import dashboardRouter from "./routes/dashboardRoutes.js";
@@ -23,10 +25,14 @@ import auditLogRouter from "./routes/auditLogRoutes.js";
 import inspectionRouter from "./routes/inspectionRoutes.js";
 import inspectionTemplateItemRouter from "./routes/inspectionTemplateItemRoutes.js";
 import registrationFeeRouter from "./routes/registrationFeeRoutes.js";
+import customerPaymentRouter from "./routes/customerPaymentRoutes.js";
+import invoiceRouter from "./routes/invoiceRoutes.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use(auditLogger);
 
 // Health check – verifies DB connectivity
 app.get("/", async (req, res) => {
@@ -59,5 +65,7 @@ app.use('/api/audit-logs', auditLogRouter);
 app.use('/api/inspections', inspectionRouter);
 app.use('/api/inspection-template-items', inspectionTemplateItemRouter);
 app.use('/api/registration-fees', registrationFeeRouter);
+app.use('/api/customer-payments', customerPaymentRouter);
+app.use('/api/invoices', invoiceRouter);
 
 export default app;

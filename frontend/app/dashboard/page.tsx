@@ -6,17 +6,13 @@ import {
   DollarSign,
   Clock,
   Car,
-  Wrench,
   Search,
   Filter,
   ArrowUpRight,
   ArrowDownRight,
   MoreHorizontal,
-  Plus,
-  ClipboardList,
   Users,
   CheckCircle,
-  AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -51,7 +47,6 @@ import {
   pageHeaderTitleClass,
   pageHeaderSubtitleClass,
   pageHeaderWrapperClass,
-  dashboardCardClass,
   dashboardTableHeaderClass,
   dashboardTableHeadRowClass,
   dashboardTableHeadClass,
@@ -62,13 +57,11 @@ import {
   getOrderStatusBadgeClass,
   formatStatusLabel,
   dashboardStatIconClass,
-  chartPrimary,
-  chartPrimaryVariants,
   chartTooltipStyle,
   chartAxisTick,
 } from "@/lib/dashboard-ui"
 import { dashboardApi, DashboardStats } from "@/lib/api"
-import { getStoredUser } from "@/lib/auth"
+import { getStoredUser, type StoredUser } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 // ─── Blue Color Palette definitions for Charts ────────────────────────────────
@@ -88,105 +81,45 @@ const blueVariants = [
   bluePalette.paleBlue,
 ]
 
-// ─── Stat Cards Config (values loaded from API in component) ─────────────────
-
-// ─── Recharts Data ────────────────────────────────────────────────────────────
-const weeklyAnalytics = [
-  { name: "Mon", revenue: 2400, inspections: 120 },
-  { name: "Tue", revenue: 3600, inspections: 180 },
-  { name: "Wed", revenue: 3000, inspections: 150 },
-  { name: "Thu", revenue: 4500, inspections: 220 },
-  { name: "Fri", revenue: 4000, inspections: 200 },
-  { name: "Sat", revenue: 5200, inspections: 260 },
-  { name: "Sun", revenue: 3800, inspections: 190 },
-]
-
-const monthlyTrends = [
-  { name: "Jan", total: 400, passed: 320, failed: 80 },
-  { name: "Feb", total: 450, passed: 370, failed: 80 },
-  { name: "Mar", total: 520, passed: 410, failed: 110 },
-  { name: "Apr", total: 490, passed: 390, failed: 100 },
-  { name: "May", total: 610, passed: 500, failed: 110 },
-  { name: "Jun", total: 680, passed: 560, failed: 120 },
-]
-
-const vehicleCategoryData = [
-  { name: "Sedan", value: 450 },
-  { name: "SUV", value: 300 },
-  { name: "Truck", value: 200 },
-  { name: "Motorcycle", value: 150 },
-]
-
-// ─── Recent Inspections Data ──────────────────────────────────────────────────
-const initialInspections = [
-  {
-    id: "INS-001",
-    vehicle: "Toyota Camry 2022",
-    plate: "ABC-1234",
-    inspector: "Alice Inspector",
-    status: "COMPLETED",
-    date: "2024-09-15",
-    total: 80,
-  },
-  {
-    id: "INS-002",
-    vehicle: "Honda Civic 2021",
-    plate: "XYZ-5678",
-    inspector: "Bob Technician",
-    status: "PENDING",
-    date: "2024-09-16",
-    total: 60,
-  },
-  {
-    id: "INS-003",
-    vehicle: "Toyota Corolla 2020",
-    plate: "DEF-9012",
-    inspector: "Alice Inspector",
-    status: "IN_PROGRESS",
-    date: "2024-09-16",
-    total: 75,
-  },
-  {
-    id: "INS-004",
-    vehicle: "Nissan Altima 2023",
-    plate: "GHI-3456",
-    inspector: "Carol Smith",
-    status: "COMPLETED",
-    date: "2024-09-14",
-    total: 80,
-  },
-  {
-    id: "INS-005",
-    vehicle: "Hyundai Elantra 2022",
-    plate: "JKL-7890",
-    inspector: "Bob Technician",
-    status: "FAILED",
-    date: "2024-09-13",
-    total: 90,
-  },
-]
+function formatMoney(amount?: number) {
+  return `$${Number(amount || 0).toLocaleString()}`
+}
 
 export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const user = getStoredUser()
+  const [user, setUser] = useState<StoredUser | null>(null)
 
   useEffect(() => {
-    dashboardApi.getStats().then(setStats).catch(() => {})
+    const id = window.setTimeout(() => {
+      setUser(getStoredUser())
+      dashboardApi.getStats().then(setStats).catch(() => {})
+    }, 0)
+    return () => window.clearTimeout(id)
   }, [])
+
+  const dashboardSubtitle = user?.companyName
+    ? `${user.companyName} — Company Dashboard`
+    : "Hirshabelle State of Somalia — Ministry of Youth and Sports"
 
   const statsData = [
     { title: "Total Inspections", value: String(stats?.totalInspections ?? "—"), icon: Briefcase, trend: "", trendUp: true },
     { title: "Pending Inspections", value: String(stats?.pendingInspections ?? "—"), icon: Clock, trend: "", trendUp: false },
     { title: "Registered Vehicles", value: String(stats?.totalVehicles ?? "—"), icon: Car, trend: "", trendUp: true },
     { title: "Vehicle Owners", value: String(stats?.totalOwners ?? "—"), icon: Users, trend: "", trendUp: true },
+    { title: "Paid Revenue", value: stats ? formatMoney(stats.totalRevenue) : "—", icon: DollarSign, trend: "", trendUp: true },
     { title: "Completed", value: String(stats?.completedInspections ?? "—"), icon: CheckCircle, trend: "", trendUp: true },
   ]
 
-  const filteredInspections = initialInspections.filter((ins) => {
+  const weeklyAnalytics = stats?.weeklyAnalytics ?? []
+  const monthlyTrends = stats?.monthlyTrends ?? []
+  const vehicleCategoryData = stats?.vehicleCategoryData ?? []
+  const recentInspections = stats?.recentInspections ?? []
+
+  const filteredInspections = recentInspections.filter((ins) => {
     const matchesSearch =
-      ins.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ins.inspectionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ins.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ins.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ins.inspector.toLowerCase().includes(searchTerm.toLowerCase())
@@ -197,10 +130,11 @@ export default function DashboardPage() {
   })
 
   const cycleStatusFilter = () => {
-    if (statusFilter === null) setStatusFilter("COMPLETED")
-    else if (statusFilter === "COMPLETED") setStatusFilter("PENDING")
+    if (statusFilter === null) setStatusFilter("PENDING")
     else if (statusFilter === "PENDING") setStatusFilter("IN_PROGRESS")
-    else if (statusFilter === "IN_PROGRESS") setStatusFilter("FAILED")
+    else if (statusFilter === "IN_PROGRESS") setStatusFilter("COMPLETED")
+    else if (statusFilter === "COMPLETED") setStatusFilter("APPROVED")
+    else if (statusFilter === "APPROVED") setStatusFilter("REJECTED")
     else setStatusFilter(null)
   }
 
@@ -209,15 +143,13 @@ export default function DashboardPage() {
       {/* Header Section */}
       <div className={pageHeaderWrapperClass}>
         <h1 className={pageHeaderTitleClass}>Admin Dashboard</h1>
-        <p className={pageHeaderSubtitleClass}>
-          {user?.companyName
-            ? `${user.companyName} — Company Dashboard`
-            : "Hirshabelle State of Somalia — Ministry of Youth and Sports"}
+        <p className={pageHeaderSubtitleClass} suppressHydrationWarning>
+          {dashboardSubtitle}
         </p>
       </div>
 
       {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {statsData.map((stat, i) => (
           <div
             key={i}
@@ -351,7 +283,7 @@ export default function DashboardPage() {
                   itemStyle={{ color: "#ffffff" }}
                 />
                 <Bar dataKey="inspections" radius={[4, 4, 0, 0]}>
-                  {weeklyAnalytics.map((entry, index) => (
+                  {weeklyAnalytics.map((_entry, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={blueVariants[index % blueVariants.length]}
@@ -535,7 +467,7 @@ export default function DashboardPage() {
                 filteredInspections.map((row) => (
                   <TableRow key={row.id} className={dashboardTableBodyRowClass}>
                     <TableCell className={dashboardTableCellClass}>
-                      <span className={dashboardTableIdClass}>{row.id}</span>
+                      <span className={dashboardTableIdClass}>{row.inspectionNo}</span>
                     </TableCell>
                     <TableCell className={dashboardTableCellClass}>
                       <span className="text-[13px] font-semibold text-foreground">
@@ -564,7 +496,7 @@ export default function DashboardPage() {
                     </TableCell>
                     <TableCell className={cn(dashboardTableCellClass, "text-right")}>
                       <span className="text-[13px] font-bold text-foreground">
-                        ${row.total.toLocaleString()}
+                        {formatMoney(row.total)}
                       </span>
                     </TableCell>
                   </TableRow>

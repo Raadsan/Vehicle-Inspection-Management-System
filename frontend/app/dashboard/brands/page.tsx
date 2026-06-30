@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, Loader2, Search, TagIcon, MoreVertical } from "lucide-react"
+import { Plus, Edit, Trash2, Loader2, Search, Car, MoreVertical } from "lucide-react"
 import toast from "react-hot-toast"
 import { vehicleBrandApi, VehicleBrand } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -96,7 +96,7 @@ function BrandCard({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-[#1565c0]/10 flex items-center justify-center shrink-0">
-              <TagIcon className="size-5 text-[#1565c0]" />
+              <Car className="size-5 text-[#1565c0]" />
             </div>
             <div>
               <h3 className="font-bold text-zinc-900 dark:text-white text-sm truncate max-w-[120px]">{brand.name}</h3>
@@ -144,10 +144,6 @@ export default function BrandsPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [saving, setSaving] = useState(false)
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null)
@@ -225,15 +221,6 @@ export default function BrandsPage() {
     return b.name.toLowerCase().includes(s) || b.description?.toLowerCase().includes(s)
   })
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filtered.length / pageSize)
-  const paginatedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [search])
-
   return (
     <div className={cn(dashboardPageClass, "space-y-5")} style={dashboardPageStyle}>
       {/* Header with Search and Add Brand Button */}
@@ -274,9 +261,9 @@ export default function BrandsPage() {
           <Loader2 className="size-8 animate-spin mx-auto text-[#1565c0]" />
           <p className="text-sm text-muted-foreground font-medium mt-2">Loading brands...</p>
         </div>
-      ) : paginatedData.length > 0 ? (
+      ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {paginatedData.map((brand) => (
+          {filtered.map((brand) => (
             <BrandCard 
               key={brand.id}
               brand={brand}

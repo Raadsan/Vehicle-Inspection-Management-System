@@ -1,22 +1,52 @@
-// src/controllers/paymentController.js
 import { prisma } from "../lib/prisma.js";
-import bcrypt from "bcryptjs"; // not needed but kept for potential future hashing
+import { companyWhere } from "../lib/tenant.js";
 
-// Create a payment transaction (e.g., after an invoice is paid)
+const transactionInclude = {
+  invoice: {
+    include: {
+      owner: { select: { id: true, fullName: true, phone: true } },
+      vehicle: {
+        include: { model: { include: { brand: true } }, vehicleColor: true },
+      },
+      company: { select: { id: true, name: true } },
+    },
+  },
+};
+
+// POST /api/payments
 export const createPayment = async (req, res) => {
   try {
-    const { invoiceId, amount, method, status } = req.body;
-    if (!invoiceId || !amount) {
+    const { invoiceId, amount, method, reference, notes, currency } = req.body;
+    if (!invoiceId || amount === undefined) {
       return res.status(400).json({ error: "invoiceId and amount are required" });
     }
-    const payment = await prisma.paymentTransaction.create({
-      data: {
-        invoiceId: Number(invoiceId),
-        amount: Number(amount),
-        method: method ?? "CASH",
-        status: status ?? "SUCCESS",
-      },
+
+    const invoice = await prisma.invoice.findUnique({ where: { id: Number(invoiceId) } });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    const payment = await prisma.$transaction(async (tx) => {
+      const txRecord = await tx.paymentTransaction.create({
+        data: {
+          invoiceId: Number(invoiceId),
+          amount: Number(amount),
+          currency: currency || invoice.currency,
+          method: method ?? "CASH",
+          reference: reference || null,
+          notes: notes || null,
+        },
+        include: transactionInclude,
+      });
+
+      const newPaid = Number(invoice.paidAmount) + Number(amount);
+      const status = newPaid >= Number(invoice.totalAmount) ? "PAID" : "PARTIAL";
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { paidAmount: newPaid, status },
+      });
+
+      return txRecord;
     });
+
     res.status(201).json(payment);
   } catch (err) {
     console.error("Create payment error:", err);
@@ -24,12 +54,18 @@ export const createPayment = async (req, res) => {
   }
 };
 
-// Get all payment transactions (optional filter by company via invoice relationship)
+// GET /api/payments
 export const getAllPayments = async (req, res) => {
   try {
+    const scope = companyWhere(req, req.query.companyId);
+    const companyFilter = scope.companyId
+      ? { invoice: { companyId: scope.companyId } }
+      : {};
+
     const payments = await prisma.paymentTransaction.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { invoice: { select: { id: true, companyId: true } } },
+      where: companyFilter,
+      orderBy: { paidAt: "desc" },
+      include: transactionInclude,
     });
     res.json(payments);
   } catch (err) {
@@ -42,7 +78,7 @@ export const getPaymentById = async (req, res) => {
   try {
     const payment = await prisma.paymentTransaction.findUnique({
       where: { id: Number(req.params.id) },
-      include: { invoice: true },
+      include: transactionInclude,
     });
     if (!payment) return res.status(404).json({ error: "Payment not found" });
     res.json(payment);
@@ -54,14 +90,15 @@ export const getPaymentById = async (req, res) => {
 
 export const updatePayment = async (req, res) => {
   try {
-    const { amount, method, status } = req.body;
+    const { method, reference, notes } = req.body;
     const updated = await prisma.paymentTransaction.update({
       where: { id: Number(req.params.id) },
       data: {
-        amount: amount ? Number(amount) : undefined,
-        method,
-        status,
+        method: method ?? undefined,
+        reference: reference !== undefined ? (reference || null) : undefined,
+        notes: notes !== undefined ? (notes || null) : undefined,
       },
+      include: transactionInclude,
     });
     res.json(updated);
   } catch (err) {

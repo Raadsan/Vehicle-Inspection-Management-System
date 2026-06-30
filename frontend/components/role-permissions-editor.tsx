@@ -75,9 +75,7 @@ export function RolePermissionsEditor({
   onSave,
   onClose,
 }: RolePermissionsEditorProps) {
-  const pages = getAllPermissionPages().sort((a, b) =>
-    toModuleLabel(a).localeCompare(toModuleLabel(b))
-  )
+  const pages = getAllPermissionPages()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">

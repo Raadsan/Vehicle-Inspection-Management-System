@@ -1,9 +1,14 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
+import multer from "multer";
 import {
   createUser,
   getAllUsers,
   getUserById,
   updateUser,
+  changeMyPassword,
+  uploadUserAvatar,
   deleteUser,
   loginUser,
 } from "../controllers/userController.js";
@@ -11,12 +16,34 @@ import { authenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
 
+const avatarDir = path.join(process.cwd(), "uploads", "avatars");
+fs.mkdirSync(avatarDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, avatarDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
+      cb(null, `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype?.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 2 * 1024 * 1024 },
+});
+
 // Public route for login
 router.post("/login", loginUser);
 
 // Protected user CRUD routes
 router.post("/", authenticateJWT, createUser);
 router.get("/", authenticateJWT, getAllUsers);
+router.post("/me/change-password", authenticateJWT, changeMyPassword);
+router.post("/:id/avatar", authenticateJWT, upload.single("avatar"), uploadUserAvatar);
 router.get("/:id", authenticateJWT, getUserById);
 router.put("/:id", authenticateJWT, updateUser);
 router.delete("/:id", authenticateJWT, deleteUser);

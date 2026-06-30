@@ -48,30 +48,35 @@ const rawSections: { section: string; pages: { title: string; url: string }[] }[
     ],
   },
   {
-    section: "Inspectors",
-    pages: [{ title: "Inspectors", url: "/dashboard/inspectors" }],
+    section: "Vehicle Inspect",
+    pages: [
+      { title: "Vehicle Inspections", url: "/dashboard/inspections" },
+      { title: "Inspection Items", url: "/dashboard/inspections/items" },
+    ],
   },
   {
-    section: "Inspections",
+    section: "Inspection Approvals",
     pages: [
-      { title: "All Inspections", url: "/dashboard/inspections" },
-      { title: "Schedule Inspection", url: "/dashboard/inspections/create" },
-      { title: "Inspection Items", url: "/dashboard/inspections/items" },
       { title: "Awaiting Approval", url: "/dashboard/inspections/approval" },
+      { title: "Approved", url: "/dashboard/inspections/approved" },
+      { title: "Expired", url: "/dashboard/inspections/expired" },
+      { title: "Rejected", url: "/dashboard/inspections/rejected" },
     ],
   },
   {
     section: "Payments",
     pages: [
       { title: "Customer Payments", url: "/dashboard/payments/customers" },
-      { title: "Inspector Payments", url: "/dashboard/payments/inspectors" },
       { title: "Invoices", url: "/dashboard/payments/invoices" },
-      { title: "Transactions", url: "/dashboard/payments/transactions" },
     ],
   },
   {
     section: "Reports",
-    pages: [{ title: "Reports", url: "/dashboard/reports" }],
+    pages: [
+      { title: "Vehicle Report", url: "/dashboard/reports/vehicles" },
+      { title: "Payment Report", url: "/dashboard/reports/payments" },
+      { title: "Vehicle Inspection Report", url: "/dashboard/reports/inspections" },
+    ],
   },
   {
     section: "Configuration",

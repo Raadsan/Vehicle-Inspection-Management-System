@@ -10,6 +10,7 @@ export interface StoredUser {
   username: string
   email?: string
   fullName?: string
+  avatarUrl?: string
   role: "SUPER_ADMIN" | "OWNER" | "INSPECTOR" | "STAFF"
   roleId?: number
   companyId: number
@@ -21,6 +22,17 @@ function urlToPermissionKey(url: string): string {
     .replace(/^\/dashboard\/?/, "")
     .replace(/\//g, ".")
     .replace(/^$/, "dashboard")
+}
+
+export function formatUserRoleLabel(
+  user: Pick<StoredUser, "role" | "companyName"> | null | undefined
+): string {
+  if (!user) return ""
+  if (user.role === "SUPER_ADMIN") return "Admin"
+  if (user.companyName) return user.companyName
+  if (user.role === "STAFF") return "Admin"
+  if (user.role === "OWNER" || user.role === "INSPECTOR") return "Company"
+  return user.role.replace(/_/g, " ")
 }
 
 export function getStoredUser(): StoredUser | null {
@@ -60,6 +72,10 @@ export function isCompanyUser(user: StoredUser | null): boolean {
   return user?.role === "OWNER"
 }
 
+export function isDowladaUser(user: StoredUser | null): boolean {
+  return user?.role === "SUPER_ADMIN" || user?.role === "STAFF"
+}
+
 export function canViewPage(url: string, user: StoredUser | null): boolean {
   if (!user) return false
   if (isSuperAdmin(user)) return true
@@ -67,6 +83,9 @@ export function canViewPage(url: string, user: StoredUser | null): boolean {
   const perms = getStoredUserPermissions()
   if (user.roleId && perms && countGrantedPermissions(perms) > 0) {
     const key = urlToPermissionKey(url)
+    if (url.startsWith("/dashboard/reports/") && perms.reports?.view === true) {
+      return true
+    }
     return perms[key]?.view === true
   }
 

@@ -30,6 +30,8 @@ export default function InspectionItemsPage() {
   const [sortOrder, setSortOrder] = useState(0)
   const [isActive, setIsActive] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const loadData = async () => {
     setLoading(true)
@@ -46,6 +48,8 @@ export default function InspectionItemsPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => { setCurrentPage(1) }, [search])
 
   const resetForm = () => { setName(""); setSortOrder(0); setIsActive(true) }
 
@@ -110,6 +114,9 @@ export default function InspectionItemsPage() {
     return item.name.toLowerCase().includes(s) || String(item.id).includes(s)
   })
 
+  const totalPages = Math.ceil(filtered.length / pageSize)
+  const paginatedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   const statusBadge = (active: boolean) => {
     return (
       <span className={cn(
@@ -130,16 +137,22 @@ export default function InspectionItemsPage() {
 
       <div className={dashboardCardClass}>
         <div className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 dark:border-border">
-          <span className="text-sm font-semibold text-zinc-500">{filtered.length} of {items.length} records</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-zinc-500 font-medium">Show</span>
+            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1) }}
+              className="h-9 px-2 border border-zinc-200 dark:border-border rounded bg-white dark:bg-muted/20 outline-none text-xs text-foreground">
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search items..."
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-56 pl-9 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded-md outline-none focus:border-[#1565c0] text-sm font-normal text-foreground"
+                className="h-9 w-52 pl-8 pr-3 bg-white dark:bg-muted/20 border border-zinc-200 dark:border-border rounded outline-none text-xs text-foreground"
               />
             </div>
             <Button onClick={openAdd} className={dashboardAddButtonClass}>
@@ -152,7 +165,7 @@ export default function InspectionItemsPage() {
           <Table className="w-full">
             <TableHeader className={dashboardTableHeaderClass}>
               <TableRow className={dashboardTableHeadRowClass}>
-                {["ID", "Item Name", "Sort Order", "Status", "Actions"].map(h => (
+                {["NO", "Item Name", "Sort Order", "Status", "Actions"].map(h => (
                   <TableHead key={h} className={cn(dashboardTableHeadClass, h === "Actions" ? "text-right" : "text-left")}>{h}</TableHead>
                 ))}
               </TableRow>
@@ -163,9 +176,9 @@ export default function InspectionItemsPage() {
                   <Loader2 className="size-6 animate-spin mx-auto text-primary" />
                   <p className="text-sm text-muted-foreground font-medium mt-2">Loading inspection items...</p>
                 </TableCell></TableRow>
-              ) : filtered.length > 0 ? filtered.map((row) => (
+              ) : paginatedData.length > 0 ? paginatedData.map((row, idx) => (
                 <TableRow key={row.id} className={dashboardTableBodyRowClass}>
-                  <TableCell className={dashboardTableCellClass}><span className={dashboardTableIdClass}>#{row.id}</span></TableCell>
+                  <TableCell className={dashboardTableCellClass}><span className={dashboardTableIdClass}>{(currentPage - 1) * pageSize + idx + 1}</span></TableCell>
                   <TableCell className={dashboardTableCellClass}><span className="text-sm font-semibold text-foreground">{row.name}</span></TableCell>
                   <TableCell className={dashboardTableCellClass}><span className="text-sm text-zinc-500 font-normal">{row.sortOrder}</span></TableCell>
                   <TableCell className={dashboardTableCellClass}>{statusBadge(row.isActive)}</TableCell>
@@ -182,6 +195,27 @@ export default function InspectionItemsPage() {
             </TableBody>
           </Table>
         </div>
+
+        {filtered.length > 0 && (
+          <div className="px-5 py-4 border-t border-zinc-100 dark:border-border flex items-center justify-between select-none">
+            <div className="text-xs text-zinc-500 font-medium">
+              {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}
+                className="h-8 w-8 rounded-full border-zinc-200 dark:border-zinc-700 p-0">
+                <span className="text-xs font-semibold">&lt;</span>
+              </Button>
+              <span className="text-xs font-bold px-3 py-1 bg-zinc-50 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+                {currentPage} of {totalPages || 1}
+              </span>
+              <Button variant="outline" size="icon" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}
+                className="h-8 w-8 rounded-full border-zinc-200 dark:border-zinc-700 p-0">
+                <span className="text-xs font-semibold">&gt;</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

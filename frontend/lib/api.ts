@@ -30,6 +30,7 @@ export interface User {
   password?: string;
   email?: string;
   fullName?: string;
+  avatarUrl?: string;
   role: "SUPER_ADMIN" | "OWNER" | "INSPECTOR" | "STAFF";
   roleId?: number;
   isActive: boolean;
@@ -127,6 +128,7 @@ export interface Vehicle {
   logbookNumber?: string;
   status: "ACTIVE" | "INACTIVE" | "SCRAPPED" | "UNDER_INSPECTION" | "BANNED";
   registrationFeeId?: number;
+  createdByUserId?: number;
   model?: VehicleModel;
   vehicleColor?: VehicleColor;
   owner?: Owner;
@@ -163,6 +165,25 @@ export interface Inspector {
   company?: { id: number; name: string };
 }
 
+export interface InspectionItemResult {
+  id: number;
+  inspectionId: number;
+  itemId: number;
+  result: "OK" | "DEFECTIVE" | "NEEDS_ATTENTION" | "NOT_APPLICABLE";
+  remarks?: string;
+  photoUrl?: string;
+}
+
+export interface InspectionChecklistItem {
+  id: number;
+  inspectionId: number;
+  category: string;
+  itemName: string;
+  isRequired: boolean;
+  sortOrder: number;
+  inspectionResults?: InspectionItemResult[];
+}
+
 export interface Inspection {
   id: number;
   companyId: number;
@@ -171,13 +192,33 @@ export interface Inspection {
   scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
-  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "CANCELLED";
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "EXPIRED" | "CANCELLED";
   notes?: string;
   overallResult?: "PASS" | "FAIL" | "CONDITIONAL";
+  approvedAt?: string;
+  expiresAt?: string;
   vehicle?: Vehicle;
   inspector?: Inspector;
   company?: { id: number; name: string };
+  inspectionItems?: InspectionChecklistItem[];
   createdAt?: string;
+  createdByUserId?: number;
+  createdByUser?: {
+    id: number;
+    fullName?: string | null;
+    username: string;
+    role: string;
+    company?: { id: number; name: string };
+  };
+}
+
+export interface InspectionItemPayload {
+  itemName: string;
+  category?: string;
+  sortOrder?: number;
+  isRequired?: boolean;
+  result: "PASS" | "FAIL";
+  remarks?: string;
 }
 
 export interface InspectionTemplateItem {
@@ -201,6 +242,72 @@ export interface RegistrationFee {
   company?: { id: number; name: string };
 }
 
+export type PaymentMethod =
+  | "CASH"
+  | "BANK_TRANSFER"
+  | "MOBILE_MONEY"
+  | "EVC"
+  | "MERCHANT"
+  | "CARD"
+  | "OTHER";
+
+export type CustomerPaymentStatus = "UNPAID" | "PAID";
+export type InvoiceStatus = "UNPAID" | "PARTIAL" | "PAID" | "CANCELLED";
+
+export interface CustomerPayment {
+  id: number;
+  companyId: number;
+  ownerId: number;
+  vehicleId?: number;
+  invoiceId?: number;
+  amount: number;
+  currency: string;
+  status: CustomerPaymentStatus;
+  paymentDate?: string;
+  method?: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  createdAt: string;
+  owner?: Owner;
+  vehicle?: Vehicle;
+  invoice?: Invoice;
+  company?: { id: number; name: string };
+}
+
+export interface Invoice {
+  id: number;
+  companyId: number;
+  ownerId: number;
+  vehicleId?: number;
+  inspectionId?: number;
+  invoiceNo: string;
+  totalAmount: number;
+  paidAmount: number;
+  currency: string;
+  dueDate?: string;
+  status: InvoiceStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  owner?: Owner;
+  vehicle?: Vehicle;
+  transactions?: PaymentTransaction[];
+  customerPayments?: CustomerPayment[];
+  company?: { id: number; name: string };
+}
+
+export interface PaymentTransaction {
+  id: number;
+  invoiceId: number;
+  amount: number;
+  currency: string;
+  method: PaymentMethod;
+  reference?: string;
+  paidAt: string;
+  notes?: string;
+  invoice?: Invoice;
+}
+
 // ─── API Helper Envelopes ────────────────────────────────────────────────────
 
 export const userApi = {
@@ -220,12 +327,24 @@ export const userApi = {
     const res = await api.put<User>(`/users/${id}`, data);
     return res.data;
   },
+  uploadAvatar: async (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const res = await api.post<User>(`/users/${id}/avatar`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
   delete: async (id: number) => {
     const res = await api.delete(`/users/${id}`);
     return res.data;
   },
   login: async (username: string, password: string) => {
     const res = await api.post("/users/login", { username, password });
+    return res.data;
+  },
+  changePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    const res = await api.post<{ message: string }>("/users/me/change-password", data);
     return res.data;
   },
 };
@@ -472,10 +591,31 @@ export const inspectorApi = {
 export interface DashboardStats {
   totalVehicles: number;
   totalOwners: number;
+  totalInspectors: number;
   totalInspections: number;
   pendingInspections: number;
   completedInspections: number;
-  recentInspections: Inspection[];
+  approvedInspections: number;
+  failedInspections: number;
+  totalInvoices: number;
+  unpaidInvoices: number;
+  paidAmount: number;
+  unpaidAmount: number;
+  totalRevenue: number;
+  weeklyAnalytics: Array<{ name: string; revenue: number; inspections: number }>;
+  monthlyTrends: Array<{ name: string; total: number; passed: number; failed: number }>;
+  vehicleCategoryData: Array<{ name: string; value: number }>;
+  recentInspections: Array<{
+    id: number;
+    inspectionNo: string;
+    vehicle: string;
+    plate: string;
+    inspector: string;
+    status: string;
+    result?: string;
+    date: string;
+    total: number;
+  }>;
 }
 
 export const dashboardApi = {
@@ -494,7 +634,7 @@ export const inspectionApi = {
     const res = await api.get<Inspection>(`/inspections/${id}`);
     return res.data;
   },
-  create: async (data: Partial<Inspection>) => {
+  create: async (data: Partial<Inspection> & { items?: InspectionItemPayload[] }) => {
     const res = await api.post<Inspection>("/inspections", data);
     return res.data;
   },
@@ -512,6 +652,10 @@ export const inspectionApi = {
   },
   reject: async (id: number, data?: { notes?: string }) => {
     const res = await api.post<Inspection>(`/inspections/${id}/reject`, data || {});
+    return res.data;
+  },
+  complete: async (id: number, data: { items: InspectionItemPayload[]; notes?: string }) => {
+    const res = await api.post<Inspection>(`/inspections/${id}/complete`, data);
     return res.data;
   },
 };
@@ -558,6 +702,58 @@ export const registrationFeeApi = {
   },
   delete: async (id: number) => {
     const res = await api.delete(`/registration-fees/${id}`);
+    return res.data;
+  },
+};
+
+export const customerPaymentApi = {
+  getAll: async (params?: { status?: CustomerPaymentStatus; companyId?: number }) => {
+    const res = await api.get<CustomerPayment[]>("/customer-payments", { params });
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<CustomerPayment>(`/customer-payments/${id}`);
+    return res.data;
+  },
+  update: async (id: number, data: { amount?: number; currency?: string; notes?: string }) => {
+    const res = await api.put<CustomerPayment>(`/customer-payments/${id}`, data);
+    return res.data;
+  },
+  markPaid: async (
+    id: number,
+    data: { method: PaymentMethod; reference?: string; notes?: string }
+  ) => {
+    const res = await api.post<{
+      customerPayment: CustomerPayment;
+      invoice: Invoice;
+      transaction: PaymentTransaction;
+    }>(`/customer-payments/${id}/paid`, data);
+    return res.data;
+  },
+  syncForVehicle: async (vehicleId: number) => {
+    const res = await api.post<CustomerPayment>(`/customer-payments/sync/${vehicleId}`);
+    return res.data;
+  },
+};
+
+export const invoiceApi = {
+  getAll: async (params?: { status?: InvoiceStatus; companyId?: number }) => {
+    const res = await api.get<Invoice[]>("/invoices", { params });
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<Invoice>(`/invoices/${id}`);
+    return res.data;
+  },
+};
+
+export const paymentTransactionApi = {
+  getAll: async (params?: { companyId?: number }) => {
+    const res = await api.get<PaymentTransaction[]>("/payments", { params });
+    return res.data;
+  },
+  getById: async (id: number) => {
+    const res = await api.get<PaymentTransaction>(`/payments/${id}`);
     return res.data;
   },
 };

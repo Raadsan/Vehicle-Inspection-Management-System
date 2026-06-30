@@ -15,8 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inspection Cars – Vehicle Inspection Management",
+  title: "KGS car inspection",
   description: "Manage vehicle inspections, payments, reports and more.",
+  icons: {
+    icon: [{ url: "/small-logo.png?v=4", type: "image/png", sizes: "any" }],
+    shortcut: [{ url: "/small-logo.png?v=4", type: "image/png" }],
+    apple: [{ url: "/small-logo.png?v=4", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
