@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 2001",
+    "dev": "node scripts/next-with-env-port.mjs dev",
     "build": "next build",
-    "start": "next start -p 2001",
+    "start": "node scripts/next-with-env-port.mjs start",
     "lint": "eslint"
   },
   "dependencies": {

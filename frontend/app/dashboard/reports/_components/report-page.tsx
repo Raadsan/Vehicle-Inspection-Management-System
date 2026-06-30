@@ -57,6 +57,14 @@ export type ReportType = "vehicles" | "payments" | "inspections"
 type ReportRow = Vehicle | CustomerPayment | Inspection
 type SummaryItem = { label: string; value: number; money?: boolean; icon: React.ElementType }
 
+function isVehicleRow(row: ReportRow): row is Vehicle {
+  return "plateNumber" in row
+}
+
+function isPaymentRow(row: ReportRow): row is CustomerPayment {
+  return "amount" in row
+}
+
 const reportMeta = {
   vehicles: {
     title: "Vehicle Report",
@@ -544,7 +552,7 @@ function ViewDialog({ row, onClose }: { row: ReportRow | null; onClose: () => vo
 }
 
 function getViewFields(row: ReportRow): Array<[string, string]> {
-  if ("plateNumber" in row) {
+  if (isVehicleRow(row)) {
     const owner = resolveVehicleOwner(row)
     return [
       ["License", row.plateNumber],
@@ -558,7 +566,7 @@ function getViewFields(row: ReportRow): Array<[string, string]> {
       ["Status", formatStatusLabel(row.status)],
     ]
   }
-  if ("invoiceId" in row || "paymentDate" in row) {
+  if (isPaymentRow(row)) {
     return [
       ["License", row.vehicle?.plateNumber || "—"],
       ["Owner", row.owner?.fullName || "—"],

@@ -32,7 +32,7 @@ export function formatUserRoleLabel(
   if (user.companyName) return user.companyName
   if (user.role === "STAFF") return "Admin"
   if (user.role === "OWNER" || user.role === "INSPECTOR") return "Company"
-  return user.role.replace(/_/g, " ")
+  return ""
 }
 
 export function getStoredUser(): StoredUser | null {
