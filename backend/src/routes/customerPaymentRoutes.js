@@ -8,10 +8,11 @@ import {
   syncAllCustomerPayments,
 } from "../controllers/customerPaymentController.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-router.use(authenticateJWT);
+router.use(authenticateJWT, authorizeFeature("customer-payments"));
 
 router.get("/", getAllCustomerPayments);
 router.post("/sync-all", syncAllCustomerPayments);

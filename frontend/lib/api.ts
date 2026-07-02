@@ -31,11 +31,10 @@ export interface User {
   email?: string;
   fullName?: string;
   avatarUrl?: string;
-  role: "SUPER_ADMIN" | "OWNER" | "INSPECTOR" | "STAFF";
+  role: string;
   roleId?: number;
   isActive: boolean;
   createdAt: string;
-  customRole?: Role;
   company?: { id: number; name: string };
   companyName?: string;
 }
@@ -210,6 +209,26 @@ export interface Inspection {
     role: string;
     company?: { id: number; name: string };
   };
+}
+
+export interface VehicleInspectionVerification {
+  inspectionState: "ACTIVE" | "EXPIRED" | "INACTIVE" | "INVALID" | "NOT_FOUND";
+  isValid: boolean;
+  message: string;
+  checkedAt?: string;
+  vehicle?: {
+    id: number;
+    plateNumber: string;
+    vin?: string | null;
+    status: string;
+    brand?: string | null;
+    model?: string | null;
+    year?: number | null;
+    company?: { id: number; name: string };
+  };
+  latestInspection?: Partial<Inspection> | null;
+  activeInspection?: Partial<Inspection> | null;
+  inspectionHistory?: Partial<Inspection>[];
 }
 
 export interface InspectionItemPayload {
@@ -656,6 +675,10 @@ export const inspectionApi = {
   },
   complete: async (id: number, data: { items: InspectionItemPayload[]; notes?: string }) => {
     const res = await api.post<Inspection>(`/inspections/${id}/complete`, data);
+    return res.data;
+  },
+  verifyVehicle: async (params: { plateNumber?: string; vin?: string; vehicleId?: number }) => {
+    const res = await api.get<VehicleInspectionVerification>("/inspections/verify", { params });
     return res.data;
   },
 };

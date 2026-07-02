@@ -6,8 +6,11 @@ import {
   updateReport,
   deleteReport,
 } from "../controllers/reportController.js";
+import { authenticateJWT } from "../middleware/auth.js";
+import { authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
+router.use(authenticateJWT, authorizeFeature("reports"));
 
 // Create a new report
 router.post("/", createReport);

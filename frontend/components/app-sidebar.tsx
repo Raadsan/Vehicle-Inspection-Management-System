@@ -88,6 +88,7 @@ const navItems: NavItem[] = [
     icon: ClipboardListIcon,
     children: [
       { title: "Vehicle Inspections", url: "/dashboard/inspections" },
+      { title: "Inspection Check", url: "/dashboard/inspections/check" },
       { title: "Inspection Items", url: "/dashboard/inspections/items" },
     ],
   },
@@ -147,10 +148,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [openSection, setOpenSection] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    setUser(getStoredUser())
+    const timer = setTimeout(() => setUser(getStoredUser()), 0)
+    return () => clearTimeout(timer)
   }, [])
 
-  const isChildActive = (url: string) => {
+  const isChildActive = React.useCallback((url: string) => {
     if (url === "/dashboard") return pathname === "/dashboard"
     if (url === "/dashboard/inspections") {
       return pathname === "/dashboard/inspections" || pathname.startsWith("/dashboard/inspections/create")
@@ -160,17 +162,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
     // All other nav child URLs are unique — exact match only
     return pathname === url
-  }
+  }, [pathname])
 
-  const sectionIsOpen = (item: NavItem) => {
+  const sectionIsOpen = React.useCallback((item: NavItem) => {
     if (!item.children) return false
     return item.children.some((child) => isChildActive(child.url))
-  }
+  }, [isChildActive])
 
   React.useEffect(() => {
-    const openParent = navItems.find((item) => item.children && sectionIsOpen(item))
-    setOpenSection(openParent?.title ?? null)
-  }, [pathname])
+    const timer = setTimeout(() => {
+      const openParent = navItems.find((item) => item.children && sectionIsOpen(item))
+      setOpenSection(openParent?.title ?? null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [pathname, sectionIsOpen])
 
   const itemVisible = (item: NavItem) => {
     if (item.children) {

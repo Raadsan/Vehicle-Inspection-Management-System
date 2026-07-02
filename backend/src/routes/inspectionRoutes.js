@@ -8,12 +8,16 @@ import {
   approveInspection,
   rejectInspection,
   completeInspection,
+  verifyVehicleInspection,
 } from "../controllers/inspectionController.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-router.use(authenticateJWT);
+router.get("/verify", verifyVehicleInspection);
+
+router.use(authenticateJWT, authorizeFeature("inspections"));
 
 router.post("/", createInspection);
 router.get("/", getInspections);

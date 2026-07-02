@@ -25,6 +25,7 @@ interface RolePermissionsEditorProps {
   permissions: RolePermissionMap
   saving?: boolean
   onToggle: (pageKey: string, action: PermissionAction) => void
+  onSetAll: (granted: boolean) => void
   onSave: () => void
   onClose: () => void
 }
@@ -72,6 +73,7 @@ export function RolePermissionsEditor({
   permissions,
   saving,
   onToggle,
+  onSetAll,
   onSave,
   onClose,
 }: RolePermissionsEditorProps) {
@@ -93,10 +95,28 @@ export function RolePermissionsEditor({
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-5">
-          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-4">
-            Role Access
-            <span className="font-normal text-zinc-400 ml-2">— {role.name}</span>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              Role Access
+              <span className="font-normal text-zinc-400 ml-2">— {role.name}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onSetAll(true)}
+                className="h-8 px-3 rounded-md bg-[#1565c0] text-white text-xs font-semibold hover:bg-[#0a2744] transition-colors"
+              >
+                Check all
+              </button>
+              <button
+                type="button"
+                onClick={() => onSetAll(false)}
+                className="h-8 px-3 rounded-md border border-zinc-300 dark:border-zinc-600 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
 
           {/* Two-column card grid — no table header */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

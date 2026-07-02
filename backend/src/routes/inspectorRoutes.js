@@ -7,10 +7,11 @@ import {
   deleteInspector,
 } from "../controllers/inspectorController.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-router.use(authenticateJWT);
+router.use(authenticateJWT, authorizeFeature("inspectors"));
 
 router.post("/", createInspector);
 router.get("/", getInspectors);

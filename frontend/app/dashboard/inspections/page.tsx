@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Search, Plus, Edit, Eye, Trash2, Loader2 } from "lucide-react"
 import toast from "react-hot-toast"
 import { inspectionApi, vehicleApi, userApi, companyApi, Inspection, Vehicle, User, Company } from "@/lib/api"
-import { getStoredUser, isCompanyUser, isSuperAdmin, type StoredUser } from "@/lib/auth"
+import { getStoredUser, isCompanyUser, isDowladaUser, type StoredUser } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -25,6 +25,11 @@ import { OwnerDisplay } from "@/components/owner-display"
 const inputCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal"
 const selectCls = "w-full h-10 px-3 border border-zinc-200 dark:border-border rounded-md outline-none text-sm bg-white dark:bg-muted/10 focus:border-[#1565c0] transition-all font-normal"
 const labelCls = "block text-sm font-semibold text-[#0a2744] dark:text-zinc-300 mb-1"
+
+function isSystemUserRole(role?: string) {
+  const normalized = String(role || "").toLowerCase().replace(/[\s_-]+/g, "")
+  return normalized === "admin" || normalized === "superadmin"
+}
 
 type OrgType = "" | "dowlada" | "company"
 
@@ -58,9 +63,9 @@ export default function InspectionsPage() {
 
   const user = currentUser ?? getStoredUser()
   const companyLocked = isCompanyUser(user)
-  const adminUser = isSuperAdmin(user) || user?.role === "STAFF"
+  const adminUser = isDowladaUser(user)
 
-  const adminUsers = users.filter(u => u.isActive && (u.role === "SUPER_ADMIN" || u.role === "STAFF"))
+  const adminUsers = users.filter(u => u.isActive && isSystemUserRole(u.role))
 
   const applyCompanyDefaults = (user: StoredUser) => {
     setOrgType("company")
@@ -107,18 +112,27 @@ export default function InspectionsPage() {
           ? [{ id: user.companyId, name: user.companyName, isActive: true } as Company]
           : [])
       }
-    } catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error("Failed: " + (e.response?.data?.error || e.message || "Unknown error"))
+    }
     finally { setLoading(false) }
   }
 
   useEffect(() => {
-    const user = getStoredUser()
-    if (user?.companyId) setCompanyId(Number(user.companyId))
-    setCurrentUser(user)
-    loadData()
+    const timer = setTimeout(() => {
+      const user = getStoredUser()
+      if (user?.companyId) setCompanyId(Number(user.companyId))
+      setCurrentUser(user)
+      loadData()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [])
 
-  useEffect(() => { setCurrentPage(1) }, [search, statusFilter])
+  useEffect(() => {
+    const timer = setTimeout(() => setCurrentPage(1), 0)
+    return () => clearTimeout(timer)
+  }, [search, statusFilter])
 
   const resetForm = () => {
     setVehicleId(0)
@@ -165,14 +179,20 @@ export default function InspectionsPage() {
       toast.success("Inspection updated")
       setIsEditOpen(false)
       loadData()
-    } catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error("Failed: " + (e.response?.data?.error || e.message || "Unknown error"))
+    }
     finally { setSubmitting(false) }
   }
 
   const handleDelete = async () => {
     if (!selected) return; setSubmitting(true)
     try { await inspectionApi.delete(selected.id); toast.success("Inspection deleted"); setIsDeleteOpen(false); loadData() }
-    catch (err: any) { toast.error("Failed: " + (err.response?.data?.error || err.message)) }
+    catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string }
+      toast.error("Failed: " + (e.response?.data?.error || e.message || "Unknown error"))
+    }
     finally { setSubmitting(false) }
   }
 
@@ -237,7 +257,7 @@ export default function InspectionsPage() {
             <option value="">Select user...</option>
             {adminUsers.map(u => (
               <option key={u.id} value={u.id}>
-                {u.fullName || u.username}{u.role === "SUPER_ADMIN" ? " (Admin)" : ""}
+                {u.fullName || u.username}{isSystemUserRole(u.role) ? " (Admin)" : ""}
               </option>
             ))}
           </select>

@@ -131,6 +131,145 @@ async function assertVehicleAvailableForSchedule(vehicleId, excludeInspectionId 
   }
 }
 
+function resolveInspectionState(vehicle, history) {
+  const now = new Date();
+  const inspection = history[0];
+  const activeInspection = history.find(
+    (row) =>
+      row.status === "APPROVED" &&
+      row.overallResult !== "FAIL" &&
+      (!row.expiresAt || row.expiresAt >= now)
+  );
+
+  if (vehicle.status !== "ACTIVE") {
+    return {
+      inspectionState: "INACTIVE",
+      isValid: false,
+      message: "Vehicle is inactive.",
+      activeInspection: null,
+    };
+  }
+
+  if (!inspection) {
+    return {
+      inspectionState: "INACTIVE",
+      isValid: false,
+      message: "Vehicle has no inspection record.",
+      activeInspection: null,
+    };
+  }
+
+  if (activeInspection) {
+    return {
+      inspectionState: "ACTIVE",
+      isValid: true,
+      message: "Vehicle inspection is active and valid.",
+      activeInspection,
+    };
+  }
+
+  if (history.some((row) => row.status === "EXPIRED" || (row.status === "APPROVED" && row.expiresAt && row.expiresAt < now))) {
+    return {
+      inspectionState: "EXPIRED",
+      isValid: false,
+      message: "Vehicle inspection has expired.",
+      activeInspection: null,
+    };
+  }
+
+  if (["REJECTED", "CANCELLED"].includes(inspection.status) || inspection.overallResult === "FAIL") {
+    return {
+      inspectionState: "INVALID",
+      isValid: false,
+      message: "Vehicle inspection is invalid.",
+      activeInspection: null,
+    };
+  }
+
+  return {
+    inspectionState: "INACTIVE",
+    isValid: false,
+    message: "Vehicle inspection is not approved yet.",
+    activeInspection: null,
+  };
+}
+
+// GET /api/inspections/verify?plateNumber=ABC123
+export const verifyVehicleInspection = async (req, res) => {
+  try {
+    const { plateNumber, vin, vehicleId } = req.query;
+    if (!plateNumber && !vin && !vehicleId) {
+      return res.status(400).json({
+        error: "Provide one of: plateNumber, vin, or vehicleId",
+      });
+    }
+
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        ...(vehicleId ? { id: Number(vehicleId) } : {}),
+        ...(plateNumber ? { plateNumber: String(plateNumber).trim() } : {}),
+        ...(vin ? { vin: String(vin).trim() } : {}),
+      },
+      include: {
+        company: { select: { id: true, name: true } },
+        model: { include: { brand: true } },
+      },
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({
+        inspectionState: "NOT_FOUND",
+        isValid: false,
+        message: "Vehicle not found.",
+      });
+    }
+
+    await expireApprovedInspections({ vehicleId: vehicle.id });
+
+    const inspectionHistory = await prisma.inspection.findMany({
+      where: { vehicleId: vehicle.id },
+      orderBy: [
+        { createdAt: "desc" },
+      ],
+      select: {
+        id: true,
+        status: true,
+        overallResult: true,
+        scheduledAt: true,
+        completedAt: true,
+        approvedAt: true,
+        expiresAt: true,
+        notes: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const state = resolveInspectionState(vehicle, inspectionHistory);
+
+    res.json({
+      ...state,
+      checkedAt: new Date(),
+      vehicle: {
+        id: vehicle.id,
+        plateNumber: vehicle.plateNumber,
+        vin: vehicle.vin,
+        status: vehicle.status,
+        brand: vehicle.model?.brand?.name || null,
+        model: vehicle.model?.name || null,
+        year: vehicle.year,
+        company: vehicle.company,
+      },
+      latestInspection: state.activeInspection || inspectionHistory[0] || null,
+      activeInspection: state.activeInspection,
+      inspectionHistory,
+    });
+  } catch (error) {
+    console.error("Verify vehicle inspection error:", error);
+    res.status(500).json({ error: error.message || "Failed to verify vehicle inspection" });
+  }
+};
+
 export const createInspection = async (req, res) => {
   try {
     const {

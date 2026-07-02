@@ -7,13 +7,16 @@ import {
   deleteCompany,
 } from "../controllers/companyController.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-router.post("/", authenticateJWT, createCompany);
-router.get("/", authenticateJWT, getAllCompanies);
-router.get("/:id", authenticateJWT, getCompanyById);
-router.put("/:id", authenticateJWT, updateCompany);
-router.delete("/:id", authenticateJWT, deleteCompany);
+router.use(authenticateJWT, authorizeFeature("companies"));
+
+router.post("/", createCompany);
+router.get("/", getAllCompanies);
+router.get("/:id", getCompanyById);
+router.put("/:id", updateCompany);
+router.delete("/:id", deleteCompany);
 
 export default router;

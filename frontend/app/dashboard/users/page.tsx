@@ -95,20 +95,12 @@ export default function UsersPage() {
     if (!roleId) return toast.error("Please select a role")
     setSubmitting(true)
 
-    // Map system role based on selected custom role name
-    const chosenRole = roles.find(r => r.id === Number(roleId))
-    let systemRole: User["role"] = "STAFF"
-    if (chosenRole?.name.toLowerCase().includes("owner")) systemRole = "OWNER"
-    if (chosenRole?.name.toLowerCase().includes("inspector")) systemRole = "INSPECTOR"
-    if (chosenRole?.name.toLowerCase().includes("admin")) systemRole = "SUPER_ADMIN"
-
     try {
       await userApi.create({
         username,
         password,
         email: email || undefined,
         fullName: fullName || undefined,
-        role: systemRole,
         roleId: Number(roleId),
         isActive
       })
@@ -122,15 +114,9 @@ export default function UsersPage() {
     if (!roleId) return toast.error("Please select a role")
     setSubmitting(true)
 
-    const chosenRole = roles.find(r => r.id === Number(roleId))
-    let systemRole: User["role"] = "STAFF"
-    if (chosenRole?.name.toLowerCase().includes("owner")) systemRole = "OWNER"
-    if (chosenRole?.name.toLowerCase().includes("inspector")) systemRole = "INSPECTOR"
-    if (chosenRole?.name.toLowerCase().includes("admin")) systemRole = "SUPER_ADMIN"
-
     try {
       const payload: Partial<User> & { password?: string; roleId?: number } = {
-        username, email: email || undefined, fullName: fullName || undefined, role: systemRole, roleId: Number(roleId), isActive
+        username, email: email || undefined, fullName: fullName || undefined, roleId: Number(roleId), isActive
       }
       if (password) payload.password = password
       await userApi.update(selected.id, payload)
@@ -243,7 +229,7 @@ export default function UsersPage() {
                   <p className="text-sm text-muted-foreground font-medium mt-2">Loading users...</p>
                 </TableCell></TableRow>
               ) : paginatedData.length > 0 ? paginatedData.map((row, idx) => {
-                const customRole = row.roleId ? roles.find(r => r.id === row.roleId) : null
+                const selectedRole = row.roleId ? roles.find(r => r.id === row.roleId) : null
                 return (
                   <TableRow key={row.id} className={dashboardTableBodyRowClass}>
                     <TableCell className={dashboardTableCellClass}>
@@ -262,9 +248,9 @@ export default function UsersPage() {
                       <span className="text-sm text-zinc-500">{row.email || "—"}</span>
                     </TableCell>
                     <TableCell className={dashboardTableCellClass}>
-                      {customRole ? (
+                      {selectedRole ? (
                         <span className={cn(dashboardStatusBadgeClass, "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300")}>
-                          {customRole.name}
+                          {selectedRole.name}
                         </span>
                       ) : <span className="text-zinc-400 text-sm">—</span>}
                     </TableCell>
@@ -413,7 +399,7 @@ export default function UsersPage() {
             <DialogTitle className="text-lg font-bold text-[#0a2744] dark:text-white">User Details</DialogTitle>
           </DialogHeader>
           {selected && (() => {
-            const customRole = selected.roleId ? roles.find(r => r.id === selected.roleId) : null
+            const selectedRole = selected.roleId ? roles.find(r => r.id === selected.roleId) : null
             return (
               <div className="space-y-3">
                 <div className="flex justify-center pb-2">
@@ -423,7 +409,7 @@ export default function UsersPage() {
                   ["Username", selected.username],
                   ["Full Name", selected.fullName || "—"],
                   ["Email", selected.email || "—"],
-                  ["Role", customRole?.name || "—"],
+                  ["Role", selectedRole?.name || "—"],
                   ["Status", selected.isActive ? "Active" : "Inactive"],
                 ].map(([l, v]) => (
                   <div key={l} className="flex items-start justify-between border-b border-zinc-100 dark:border-border pb-2.5 gap-4">

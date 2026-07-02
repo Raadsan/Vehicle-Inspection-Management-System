@@ -11,7 +11,7 @@ export interface StoredUser {
   email?: string
   fullName?: string
   avatarUrl?: string
-  role: "SUPER_ADMIN" | "OWNER" | "INSPECTOR" | "STAFF"
+  role: string
   roleId?: number
   companyId: number
   companyName?: string
@@ -28,11 +28,13 @@ export function formatUserRoleLabel(
   user: Pick<StoredUser, "role" | "companyName"> | null | undefined
 ): string {
   if (!user) return ""
-  if (user.role === "SUPER_ADMIN") return "Admin"
+  if (user.role) return user.role
   if (user.companyName) return user.companyName
-  if (user.role === "STAFF") return "Admin"
-  if (user.role === "OWNER" || user.role === "INSPECTOR") return "Company"
   return ""
+}
+
+function normalizeRole(user: StoredUser | null): string {
+  return String(user?.role || "").toLowerCase().replace(/[\s_-]+/g, "")
 }
 
 export function getStoredUser(): StoredUser | null {
@@ -65,15 +67,17 @@ export function hydrateUserPermissions(roleId?: number) {
 }
 
 export function isSuperAdmin(user: StoredUser | null): boolean {
-  return user?.role === "SUPER_ADMIN"
+  return normalizeRole(user) === "superadmin"
 }
 
 export function isCompanyUser(user: StoredUser | null): boolean {
-  return user?.role === "OWNER"
+  const role = normalizeRole(user)
+  return role === "company" || role === "owner"
 }
 
 export function isDowladaUser(user: StoredUser | null): boolean {
-  return user?.role === "SUPER_ADMIN" || user?.role === "STAFF"
+  const role = normalizeRole(user)
+  return role === "superadmin" || role === "admin"
 }
 
 export function canViewPage(url: string, user: StoredUser | null): boolean {
@@ -89,15 +93,15 @@ export function canViewPage(url: string, user: StoredUser | null): boolean {
     return perms[key]?.view === true
   }
 
-  return legacyCanViewPage(url, user.role)
+  return legacyCanViewPage(url, normalizeRole(user))
 }
 
-function legacyCanViewPage(url: string, role: StoredUser["role"]): boolean {
+function legacyCanViewPage(url: string, role: string): boolean {
   const adminOnly = ["/dashboard/users", "/dashboard/companies", "/dashboard/configuration"]
-  if (adminOnly.some(p => url.startsWith(p))) return role === "SUPER_ADMIN"
+  if (adminOnly.some(p => url.startsWith(p))) return role === "superadmin"
 
   const staffAdmin = ["/dashboard/owners", "/dashboard/payments", "/dashboard/reports"]
-  if (staffAdmin.some(p => url.startsWith(p))) return role === "SUPER_ADMIN" || role === "STAFF"
+  if (staffAdmin.some(p => url.startsWith(p))) return role === "superadmin" || role === "admin"
 
   return true
 }

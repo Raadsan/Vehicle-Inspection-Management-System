@@ -51,6 +51,7 @@ const rawSections: { section: string; pages: { title: string; url: string }[] }[
     section: "Vehicle Inspect",
     pages: [
       { title: "Vehicle Inspections", url: "/dashboard/inspections" },
+      { title: "Inspection Check", url: "/dashboard/inspections/check" },
       { title: "Inspection Items", url: "/dashboard/inspections/items" },
     ],
   },

@@ -19,6 +19,8 @@
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
     "db:seed": "node prisma/seed.js",
+    "db:seed-permissions": "node seed_permissions.js",
+    "db:sync-user-roles": "node scripts/sync-user-roles.mjs",
     "db:test": "node prisma/test-db.mjs",
     "create-admin": "node prisma/create-admin.js"
   },

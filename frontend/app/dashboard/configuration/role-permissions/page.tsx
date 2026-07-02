@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { Edit, Eye, Loader2, Plus, Shield, Trash2 } from "lucide-react"
 import toast from "react-hot-toast"
-import { roleApi, Role } from "@/lib/api"
+import { permissionApi, roleApi, rolePermissionApi, Permission, Role, RolePermission } from "@/lib/api"
 import { RolePermissionsEditor } from "@/components/role-permissions-editor"
 import { cn } from "@/lib/utils"
 import {
   countGrantedPermissions,
   createEmptyRolePermissions,
+  getAllPermissionPages,
+  PERMISSION_ACTIONS,
   type PermissionAction,
   type RolePermissionMap,
 } from "@/lib/navigation-config"
@@ -32,33 +34,108 @@ const ACTION_BADGE_ICONS = [
   { key: "delete" as const, Icon: Trash2 },
 ]
 
+const PAGE_FEATURES: Record<string, string> = {
+  dashboard: "dashboard",
+  users: "users",
+  companies: "companies",
+  owners: "owners",
+  vehicles: "vehicles",
+  brands: "brands",
+  models: "models",
+  colors: "colors",
+  "registration-fees": "registration-fees",
+  inspections: "inspections",
+  "inspections.check": "inspections",
+  "inspections.items": "inspection-items",
+  "inspections.approval": "inspections",
+  "inspections.approved": "inspections",
+  "inspections.expired": "inspections",
+  "inspections.rejected": "inspections",
+  "payments.customers": "customer-payments",
+  "payments.invoices": "invoices",
+  "reports.vehicles": "reports",
+  "reports.payments": "reports",
+  "reports.inspections": "reports",
+  "configuration.roles": "roles",
+  "configuration.role-permissions": "role-permissions",
+  "configuration.audit-log": "audit-log",
+}
+
+function backendAction(action: PermissionAction) {
+  return action === "add" ? "create" : action
+}
+
+function getErrorMessage(err: unknown) {
+  const e = err as { response?: { data?: { error?: string } }; message?: string }
+  return e.response?.data?.error || e.message || "Unknown error"
+}
+
+function assignmentsToPagePerms(assignments: RolePermission[]): RolePermissionMap {
+  const map = createEmptyRolePermissions()
+  for (const page of getAllPermissionPages()) {
+    const feature = PAGE_FEATURES[page.key] || page.key
+    for (const action of ["view", "add", "edit", "delete"] as PermissionAction[]) {
+      const expectedAction = backendAction(action)
+      map[page.key][action] = assignments.some(({ permission }) =>
+        permission?.feature === feature &&
+        (permission.action === expectedAction || permission.action === "manage")
+      )
+    }
+  }
+  return map
+}
+
+function pagePermsToPermissionIds(perms: RolePermissionMap, permissions: Permission[]) {
+  const ids = new Set<number>()
+  for (const page of getAllPermissionPages()) {
+    const feature = PAGE_FEATURES[page.key] || page.key
+    const row = perms[page.key]
+    if (!row) continue
+    for (const action of ["view", "add", "edit", "delete"] as PermissionAction[]) {
+      if (!row[action]) continue
+      const code = `${feature}.${backendAction(action)}`
+      const permission = permissions.find((item) => item.code === code)
+      if (permission) ids.add(permission.id)
+    }
+  }
+  return Array.from(ids)
+}
+
 export default function RolePermissionsPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [permMap, setPermMap] = useState<Record<number, RolePermissionMap>>({})
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [draftPerms, setDraftPerms] = useState<RolePermissionMap>(createEmptyRolePermissions())
 
   const loadRoles = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await roleApi.getAll()
+      const [data, allPermissions] = await Promise.all([roleApi.getAll(), permissionApi.getAll()])
       setRoles(data)
+      setPermissions(allPermissions)
       const map: Record<number, RolePermissionMap> = {}
       for (const role of data) {
-        map[role.id] = getRolePagePermissions(role.id)
+        try {
+          const assignments = await rolePermissionApi.getByRole(role.id)
+          map[role.id] = assignments.length ? assignmentsToPagePerms(assignments) : getRolePagePermissions(role.id)
+        } catch {
+          map[role.id] = getRolePagePermissions(role.id)
+        }
       }
       setPermMap(map)
-    } catch (err: any) {
-      toast.error("Failed to load roles: " + (err.response?.data?.error || err.message))
+    } catch (err: unknown) {
+      toast.error("Failed to load roles: " + getErrorMessage(err))
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    loadRoles()
+    const id = window.setTimeout(() => { loadRoles() }, 0)
+    return () => window.clearTimeout(id)
   }, [loadRoles])
 
   const openEditor = (role: Role) => {
@@ -76,11 +153,22 @@ export default function RolePermissionsPage() {
     }))
   }
 
+  const setAllPermissions = (granted: boolean) => {
+    const next = createEmptyRolePermissions()
+    for (const page of getAllPermissionPages()) {
+      for (const { key } of PERMISSION_ACTIONS) {
+        next[page.key][key] = granted
+      }
+    }
+    setDraftPerms(next)
+  }
+
   const handleSave = async () => {
     if (!editingRole) return
     setSaving(true)
     try {
       saveRolePagePermissions(editingRole.id, draftPerms)
+      await rolePermissionApi.setForRole(editingRole.id, pagePermsToPermissionIds(draftPerms, permissions))
       setPermMap((prev) => ({ ...prev, [editingRole.id]: draftPerms }))
       await logAudit({
         action: "UPDATE",
@@ -182,6 +270,7 @@ export default function RolePermissionsPage() {
           permissions={draftPerms}
           saving={saving}
           onToggle={togglePermission}
+          onSetAll={setAllPermissions}
           onSave={handleSave}
           onClose={() => setEditingRole(null)}
         />

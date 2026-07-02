@@ -10,9 +10,11 @@ import {
   changeMyPassword,
   uploadUserAvatar,
   deleteUser,
+  getUserPermissions,
   loginUser,
 } from "../controllers/userController.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { allowSelfOrFeature, authorizeFeature } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -40,12 +42,14 @@ const upload = multer({
 router.post("/login", loginUser);
 
 // Protected user CRUD routes
-router.post("/", authenticateJWT, createUser);
-router.get("/", authenticateJWT, getAllUsers);
+router.post("/", authenticateJWT, authorizeFeature("users", "create"), createUser);
+router.get("/", authenticateJWT, authorizeFeature("users", "view"), getAllUsers);
 router.post("/me/change-password", authenticateJWT, changeMyPassword);
-router.post("/:id/avatar", authenticateJWT, upload.single("avatar"), uploadUserAvatar);
-router.get("/:id", authenticateJWT, getUserById);
-router.put("/:id", authenticateJWT, updateUser);
-router.delete("/:id", authenticateJWT, deleteUser);
+router.get("/me/permissions", authenticateJWT, getUserPermissions);
+router.post("/:id/avatar", authenticateJWT, allowSelfOrFeature("users", "edit"), upload.single("avatar"), uploadUserAvatar);
+router.get("/:id/permissions", authenticateJWT, allowSelfOrFeature("users", "view"), getUserPermissions);
+router.get("/:id", authenticateJWT, allowSelfOrFeature("users", "view"), getUserById);
+router.put("/:id", authenticateJWT, allowSelfOrFeature("users", "edit"), updateUser);
+router.delete("/:id", authenticateJWT, authorizeFeature("users", "delete"), deleteUser);
 
 export default router;

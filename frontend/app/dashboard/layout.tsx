@@ -28,6 +28,7 @@ import {
 function getPageTitle(pathname: string): string {
   if (pathname === "/dashboard") return "Dashboard"
   if (pathname.startsWith("/dashboard/inspections/create")) return "Schedule Inspection"
+  if (pathname.startsWith("/dashboard/inspections/check")) return "Inspection Check"
   if (pathname.startsWith("/dashboard/inspections/items")) return "Inspection Items"
   if (pathname.startsWith("/dashboard/inspections/results")) return "Inspection Results"
   if (pathname.startsWith("/dashboard/inspections/approval")) return "Awaiting Approval"

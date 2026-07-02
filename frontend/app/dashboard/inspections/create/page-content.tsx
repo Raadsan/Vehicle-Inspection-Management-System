@@ -38,6 +38,11 @@ const labelCls = "block text-sm font-semibold text-[#0a2744] dark:text-zinc-300 
 type OrgType = "" | "dowlada" | "company"
 type ItemResultMap = Record<number, "PASS" | "FAIL">
 
+function isSystemUserRole(role?: string) {
+  const normalized = String(role || "").toLowerCase().replace(/[\s_-]+/g, "")
+  return normalized === "admin" || normalized === "superadmin"
+}
+
 function PassFailToggle({
   value,
   onChange,
@@ -121,7 +126,7 @@ export default function ScheduleInspectionPage() {
   const isCompleting = Boolean(completeId)
   // System users only — exclude company owners/inspectors
   const systemUsers = users.filter(
-    (u) => u.isActive && (u.role === "SUPER_ADMIN" || u.role === "STAFF")
+    (u) => u.isActive && isSystemUserRole(u.role)
   )
   const [userSearch, setUserSearch] = useState("")
   const [showUserList, setShowUserList] = useState(false)
@@ -159,78 +164,81 @@ export default function ScheduleInspectionPage() {
   }
 
   useEffect(() => {
-    const u = getStoredUser()
-    setCurrentUser(u)
-    if (u?.companyId) setCompanyId(Number(u.companyId))
-    if (u && isCompanyUser(u)) applyCompanyDefaults(u)
-    else if (u && isDowladaUser(u)) applyDowladaDefaults(u)
+    const timer = setTimeout(() => {
+      const u = getStoredUser()
+      setCurrentUser(u)
+      if (u?.companyId) setCompanyId(Number(u.companyId))
+      if (u && isCompanyUser(u)) applyCompanyDefaults(u)
+      else if (u && isDowladaUser(u)) applyDowladaDefaults(u)
 
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [vehiclesData, itemsData, inspectionsData] = await Promise.all([
-          vehicleApi.getAll(),
-          inspectionTemplateItemApi.getAll(),
-          inspectionApi.getAll(),
-        ])
+      const load = async () => {
+        setLoading(true)
+        try {
+          const [vehiclesData, itemsData, inspectionsData] = await Promise.all([
+            vehicleApi.getAll(),
+            inspectionTemplateItemApi.getAll(),
+            inspectionApi.getAll(),
+          ])
 
-        let existingVehicleId = 0
-        if (completeId) {
-          const existing = await inspectionApi.getById(Number(completeId))
-          existingVehicleId = existing.vehicleId
-          setVehicleId(existing.vehicleId)
-          setScheduledAt(existing.scheduledAt ? existing.scheduledAt.slice(0, 16) : "")
-          setNotes(existing.notes || "")
-          if (existing.companyId) {
-            setOrgType("company")
-            setSelectedCompanyId(existing.companyId)
+          let existingVehicleId = 0
+          if (completeId) {
+            const existing = await inspectionApi.getById(Number(completeId))
+            existingVehicleId = existing.vehicleId
+            setVehicleId(existing.vehicleId)
+            setScheduledAt(existing.scheduledAt ? existing.scheduledAt.slice(0, 16) : "")
+            setNotes(existing.notes || "")
+            if (existing.companyId) {
+              setOrgType("company")
+              setSelectedCompanyId(existing.companyId)
+            }
           }
-        }
 
-        const busyVehicleIds = new Set(
-          (inspectionsData as Inspection[])
-            .filter((i) =>
-              ["PENDING", "IN_PROGRESS", "AWAITING_APPROVAL"].includes(i.status) &&
-              String(i.id) !== completeId
-            )
-            .map((i) => i.vehicleId)
-        )
-
-        setVehicles(
-          (vehiclesData as Vehicle[]).filter(
-            (v) => !busyVehicleIds.has(v.id) || v.id === existingVehicleId
+          const busyVehicleIds = new Set(
+            (inspectionsData as Inspection[])
+              .filter((i) =>
+                ["PENDING", "IN_PROGRESS", "AWAITING_APPROVAL"].includes(i.status) &&
+                String(i.id) !== completeId
+              )
+              .map((i) => i.vehicleId)
           )
-        )
 
-        const items = (itemsData as InspectionTemplateItem[]).filter((i) => i.isActive)
-        setTemplateItems(items)
-        const defaults: ItemResultMap = {}
-        items.forEach((item) => {
-          defaults[item.id] = "PASS"
-        })
-        setItemResults(defaults)
-
-        if (dowladaLocked && !companyLocked) {
-          const usersData = await userApi.getAll()
-          setUsers(
-            (usersData as User[]).filter(
-              (u) => u.isActive && (u.role === "SUPER_ADMIN" || u.role === "STAFF")
+          setVehicles(
+            (vehiclesData as Vehicle[]).filter(
+              (v) => !busyVehicleIds.has(v.id) || v.id === existingVehicleId
             )
           )
-        } else if (u) {
-          setUsers([u as User])
-          setCompanies(
-            u.companyName ? [{ id: u.companyId, name: u.companyName, isActive: true } as Company] : []
-          )
+
+          const items = (itemsData as InspectionTemplateItem[]).filter((i) => i.isActive)
+          setTemplateItems(items)
+          const defaults: ItemResultMap = {}
+          items.forEach((item) => {
+            defaults[item.id] = "PASS"
+          })
+          setItemResults(defaults)
+
+          if (dowladaLocked && !companyLocked) {
+            const usersData = await userApi.getAll()
+            setUsers(
+              (usersData as User[]).filter(
+                (u) => u.isActive && isSystemUserRole(u.role)
+              )
+            )
+          } else if (u) {
+            setUsers([u as User])
+            setCompanies(
+              u.companyName ? [{ id: u.companyId, name: u.companyName, isActive: true } as Company] : []
+            )
+          }
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "Failed to load data"
+          toast.error(message)
+        } finally {
+          setLoading(false)
         }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Failed to load data"
-        toast.error(message)
-      } finally {
-        setLoading(false)
       }
-    }
-    load()
+      load()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [completeId])
 
   const buildItemsPayload = (): InspectionItemPayload[] =>
@@ -422,7 +430,7 @@ export default function ScheduleInspectionPage() {
                   <input
                     type="text"
                     required
-                    value={userSearch || (selectedUserDisplay ? `${selectedUserDisplay.fullName || selectedUserDisplay.username}${selectedUserDisplay.role === "SUPER_ADMIN" ? " (Admin)" : ""}` : "")}
+                    value={userSearch || (selectedUserDisplay ? `${selectedUserDisplay.fullName || selectedUserDisplay.username}${isSystemUserRole(selectedUserDisplay.role) ? " (Admin)" : ""}` : "")}
                     onChange={(e) => {
                       setUserSearch(e.target.value)
                       setSelectedUserId("")
@@ -448,7 +456,7 @@ export default function ScheduleInspectionPage() {
                               }}
                             >
                               {u.fullName || u.username}
-                              {u.role === "SUPER_ADMIN" ? " (Admin)" : ""}
+                              {isSystemUserRole(u.role) ? " (Admin)" : ""}
                             </button>
                           </li>
                         ))}
